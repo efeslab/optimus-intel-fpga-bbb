@@ -167,6 +167,10 @@ module vai_mgr_afu # (parameter NUM_SUB_AFUS=8)
                 begin
                     T3_Tx_c2.data <= mgr_id[127:64];
                 end
+                else
+                begin
+                    T3_Tx_c2.data <= 64'hffffffffffffffff;
+                end
             end
             else
             begin
