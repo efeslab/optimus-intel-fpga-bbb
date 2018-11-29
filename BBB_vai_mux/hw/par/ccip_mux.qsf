@@ -21,4 +21,5 @@ set_global_assignment -name SYSTEMVERILOG_FILE $CCI_MUX_SRC/hw/rtl/vai_audit_tx.
 set_global_assignment -name SYSTEMVERILOG_FILE $CCI_MUX_SRC/hw/rtl/vai_serve_rx.sv
 set_global_assignment -name VERILOG_FILE $CCI_MUX_SRC/hw/rtl/gram_sdp.v
 set_global_assignment -name VERILOG_FILE $CCI_MUX_SRC/hw/rtl/sync_C1Tx_fifo.v
+set_global_assignment -name SYSTEMVERILOG_FILE $CCI_MUX_SRC/hw/rtl/vai_mgr_afu.sv
 

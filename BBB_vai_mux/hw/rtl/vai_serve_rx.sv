@@ -7,7 +7,9 @@ module vai_serve_rx # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
     input   t_if_ccip_Rx            up_RxPort,                          // upstream Rx response port
 
     output  t_if_ccip_Rx            afu_RxPort    [NUM_SUB_AFUS-1:0],        // downstream Rx response AFU
-    output  logic [63:0]            offset_array   [NUM_SUB_AFUS-1:0]
+    output  logic [63:0]            offset_array   [NUM_SUB_AFUS-1:0],
+
+    output  t_if_ccip_Rx            mgr_RxPort
 );
 
     localparam LNUM_SUB_AFUS = $clog2(NUM_SUB_AFUS);
@@ -114,6 +116,9 @@ module vai_serve_rx # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
     t_if_ccip_c0_Rx T3_c0;
     t_if_ccip_c1_Rx T3_c1;
 
+    /* specially, if T2_is_ctl_mmio is 1, we need to output the c0 channel to the mgr port */
+    t_if_ccip_c0_Rx T3_mgr_c0;
+
     logic [VMID_WIDTH-1:0] T3_c0_vmid;
     logic [VMID_WIDTH-1:0] T3_c1_vmid;
 
@@ -146,6 +151,7 @@ module vai_serve_rx # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
         begin
             T3_c0 <= t_if_ccip_c0_Rx'(0);
             T3_c1 <= t_if_ccip_c1_Rx'(0);
+            T3_mgr_c0 <= t_if_ccip_c0_Rx'(0);
 
             T3_c0_vmid <= 0;
             T3_c1_vmid <= 0;
@@ -166,6 +172,8 @@ module vai_serve_rx # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
                 T3_c0.rspValid      <=  T2_c0.rspValid;
                 T3_c0.mmioRdValid   <=  0;
                 T3_c0.mmioWrValid   <=  0;
+
+                T3_mgr_c0           <=  t_if_ccip_c0_Rx'(0);
             end
             else if (T2_c0_choose_mmio)
             begin
@@ -175,15 +183,25 @@ module vai_serve_rx # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
                 T3_c0.rspValid      <=  0;
                 T3_c0.mmioRdValid   <=  T2_c0.mmioRdValid;
                 T3_c0.mmioWrValid   <=  T2_c0.mmioWrValid;
+
+                T3_mgr_c0           <=  t_if_ccip_c0_Rx'(0);
             end
-            else 
+            else if (T2_is_ctl_mmio)
             begin
                 T3_c0_vmid          <=  0;
-                T3_c0.hdr           <=  t_ccip_c0_RspMemHdr'(0);
-                T3_c0.data          <=  0;
-                T3_c0.rspValid      <=  0;
-                T3_c0.mmioRdValid   <=  0;
-                T3_c0.mmioWrValid   <=  0;
+                T3_c0               <=  t_if_ccip_c0_Rx'(0);
+
+                T3_mgr_c0.hdr       <=  T3_c0_mmio_hdr;
+                T3_mgr_c0.data      <=  T2_c0.data;
+                T3_mgr_c0.rspValid  <=  0;
+                T3_mgr_c0.mmioRdValid   <=  T2_c0.mmioRdValid;
+                T3_mgr_c0.mmioWrValid   <=  T2_c0.mmioWrValid;
+            end
+            else
+            begin
+                T3_c0_vmid  <=  0;
+                T3_c0       <=  t_if_ccip_c0_Rx'(0);
+                T3_mgr_c0   <=  t_if_ccip_c0_Rx'(0);
             end
 
             /* fix c1 mdata */
@@ -259,5 +277,12 @@ module vai_serve_rx # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
             end
         end
     endgenerate
+
+    /* output the mgr port */
+    always_comb
+    begin
+        mgr_RxPort.c0 = T3_mgr_c0;
+        mgr_RxPort.c1 = t_if_ccip_c1_Rx'(0);
+    end
 
 endmodule

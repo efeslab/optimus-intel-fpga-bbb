@@ -22,6 +22,7 @@ module vai_mux # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
     /* forward Rx Port */
 
     t_if_ccip_Rx pre_afu_RxPort[NUM_SUB_AFUS-1:0];
+    t_if_ccip_Rx mgr_RxPort;
     logic [63:0] offset_array [NUM_SUB_AFUS-1:0];
 
     vai_serve_rx #(
@@ -32,30 +33,64 @@ module vai_mux # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
         .reset(SoftReset),
         .up_RxPort(up_RxPort),
         .afu_RxPort(pre_afu_RxPort),
-        .offset_array(offset_array)
+        .mgr_RxPort(mgr_RxPort)
         );
 
+    t_if_ccip_Tx mgr_TxPort;
+
+    vai_mgr_afu #(
+        .NUM_SUB_AFUS(NUM_SUB_AFUS)
+    )
+    inst_vai_mgr_afu(
+        .pClk(pClk),
+        .pClkDiv2(pClkDiv2),
+        .pClkDiv4(pClkDiv4),
+        .uClk_usr(uClk_usr),
+        .uClk_usrDiv2(uClk_usrDiv2),
+        .pck_cp2af_softReset(pck_cp2af_softReset),
+        .pck_cp2af_pwrState(pck_cp2af_pwrState),
+        .pck_cp2af_error(pck_cp2af_error),
+        .pck_cp2af_sRx(mgr_RxPort),
+        .pck_af2cp_sTx(mgr_TxPort),
+        .offset_array(offset_array),
+        .sub_afu_reset()
+        );
+
+    logic afu_SoftReset_ext [NUM_SUB_AFUS:0];
+    logic [1:0] afu_PwrState_ext [NUM_SUB_AFUS:0];
+    logic afu_Error_ext [NUM_SUB_AFUS:0];
+
+    always_comb
+    begin
+        for (int i=0; i<NUM_SUB_AFUS; i++)
+        begin
+            afu_SoftReset[i] = afu_SoftReset_ext[i];
+            afu_PwrState[i] = afu_PwrState_ext[i];
+            afu_Error[i] = afu_Error[i];
+        end
+    end
 
     /* audit Tx port for each afu */
 
-    t_if_ccip_Tx audit_TxPort[NUM_SUB_AFUS-1:0];
+    t_if_ccip_Tx audit_TxPort[NUM_SUB_AFUS:0];
     vai_audit_tx #(
         .NUM_SUB_AFUS(NUM_SUB_AFUS)
     )
     inst_vai_audit_tx(
         .clk(pClk),
         .reset(SoftReset),
-        .up_TxPort(audit_TxPort),
+        .up_TxPort(audit_TxPort[NUM_SUB_AFUS-1:0]),
         .afu_TxPort(afu_TxPort),
         .offset_array(offset_array)
         );
 
 
     /* we utilize the legacy ccip_mux to send packet */
+    assign audit_TxPort[NUM_SUB_AFUS] = mgr_TxPort;
 
-    t_if_ccip_Rx legacy_afu_RxPort[NUM_SUB_AFUS-1:0];
+    t_if_ccip_Rx legacy_afu_RxPort[NUM_SUB_AFUS:0];
     ccip_mux_legacy #(
-        .NUM_SUB_AFUS(NUM_SUB_AFUS),
+        .NUM_SUB_AFUS(NUM_SUB_AFUS+1),
         .NUM_PIPE_STAGES(0)
     )
     inst_ccip_mux_legacy(
@@ -66,9 +101,9 @@ module vai_mux # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
         .up_PwrState(up_PwrState),
         .up_RxPort(up_RxPort), /* we only use this to count packets */
         .up_TxPort(up_TxPort),
-        .afu_SoftReset(afu_SoftReset),
-        .afu_PwrState(afu_PwrState),
-        .afu_Error(afu_Error),
+        .afu_SoftReset(afu_SoftReset_ext),
+        .afu_PwrState(afu_PwrState_ext),
+        .afu_Error(afu_Error_ext),
         .afu_RxPort(legacy_afu_RxPort),
         .afu_TxPort(audit_TxPort)
         );

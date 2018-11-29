@@ -12,3 +12,4 @@
 ../rtl/vai_audit_tx.sv
 ../rtl/vai_mux.sv
 ../rtl/vai_serve_rx.sv
+../rtl/vai_mgr_afu.sv
