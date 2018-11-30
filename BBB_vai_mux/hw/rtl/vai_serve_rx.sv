@@ -13,7 +13,7 @@ module vai_serve_rx # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
 );
 
     localparam LNUM_SUB_AFUS = $clog2(NUM_SUB_AFUS);
-    localparam VMID_WIDTH = LNUM_SUB_AFUS;
+    localparam VMID_WIDTH = LNUM_SUB_AFUS + 1;
 
     /* stage T0 */
 
@@ -92,8 +92,8 @@ module vai_serve_rx # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
             T2_is_mmio_write <= T1_is_mmio_write;
 
             /* the vmid of c0 and c1 are decided by the top bits of mdata */
-            T2_c0_vmid <= T1_c0.hdr.mdata[15-:LNUM_SUB_AFUS];
-            T2_c1_vmid <= T1_c1.hdr.mdata[15-:LNUM_SUB_AFUS];
+            T2_c0_vmid <= T1_c0.hdr.mdata[15-:VMID_WIDTH];
+            T2_c1_vmid <= T1_c1.hdr.mdata[15-:VMID_WIDTH];
 
             /* the vmid of mmio is decided by the address, each VM has 0xff bytes,
              * and 0x0-0xff are owned by the hypervisor */
@@ -134,8 +134,8 @@ module vai_serve_rx # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
         T3_c0_mem_hdr.hit_miss  =  T2_c0.hdr.hit_miss;
         T3_c0_mem_hdr.rsvd1     =  T2_c0.hdr.rsvd1;
         T3_c0_mem_hdr.vc_used   =  T2_c0.hdr.vc_used;
-        T3_c0_mem_hdr.mdata[15:16-LNUM_SUB_AFUS]    =  0;
-        T3_c0_mem_hdr.mdata[15-LNUM_SUB_AFUS:0]     =  T2_c0.hdr.mdata[15-LNUM_SUB_AFUS:0];
+        T3_c0_mem_hdr.mdata[15:16-VMID_WIDTH]    =  0;
+        T3_c0_mem_hdr.mdata[15-VMID_WIDTH:0]     =  T2_c0.hdr.mdata[15-VMID_WIDTH:0];
 
         /* candidate mmio request */
         T3_c0_mmio_hdr.address[CCIP_MMIOADDR_WIDTH:6]  =   0;
@@ -216,8 +216,8 @@ module vai_serve_rx # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
                 T3_c1.hdr.hit_miss  <=  T2_c1.hdr.hit_miss;
                 T3_c1.hdr.rsvd1     <=  T2_c1.hdr.rsvd1;
                 T3_c1.hdr.vc_used   <=  T2_c1.hdr.vc_used;
-                T3_c1.hdr.mdata[15:16-LNUM_SUB_AFUS]    <=  0;
-                T3_c1.hdr.mdata[15-LNUM_SUB_AFUS:0]     <=  T2_c1.hdr.mdata[15-LNUM_SUB_AFUS:0];
+                T3_c1.hdr.mdata[15:16-VMID_WIDTH]    <=  0;
+                T3_c1.hdr.mdata[15-VMID_WIDTH:0]     <=  T2_c1.hdr.mdata[15-VMID_WIDTH:0];
                 T3_c1_vmid          <=  T2_c1_vmid;
             end
             else
