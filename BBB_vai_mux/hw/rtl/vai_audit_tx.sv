@@ -77,7 +77,7 @@ module vai_audit_tx #(parameter NUM_SUB_AFUS=8)
                     T2_c0.hdr.cl_len    <=  T1_c0.hdr.cl_len;
                     T2_c0.hdr.req_type  <=  T1_c0.hdr.req_type;
                     T2_c0.hdr.rsvd0     <=  T1_c0.hdr.rsvd0;
-                    T2_c0.hdr.address   <=  T1_c0.hdr.address + t_ccip_clAddr(T1_offset_mem);
+                    T2_c0.hdr.address   <=  T1_c0.hdr.address + t_ccip_clAddr'(T1_offset_mem);
                     T2_c0.hdr.mdata[15:16-LNUM_SUB_AFUS]    <= n;
                     T2_c0.hdr.mdata[15-LNUM_SUB_AFUS:0]     <=  T1_c0.hdr.mdata[15-LNUM_SUB_AFUS:0];
 
@@ -91,7 +91,7 @@ module vai_audit_tx #(parameter NUM_SUB_AFUS=8)
                     T2_c1.hdr.cl_len    <=  T1_c1.hdr.cl_len;
                     T2_c1.hdr.req_type  <=  T1_c1.hdr.req_type;
                     T2_c1.hdr.address   <=  (T1_c1.hdr.req_type == eREQ_WRFENCE) ? 
-                                                0 : (T1_c1.hdr.address + t_ccip_clAddr(T1_offset_mem));
+                                                0 : (T1_c1.hdr.address + t_ccip_clAddr'(T1_offset_mem));
                     T2_c1.hdr.mdata[15:16-LNUM_SUB_AFUS]    <=  n;
                     T2_c1.hdr.mdata[15-LNUM_SUB_AFUS:0]     <=  T2_c1.hdr.mdata[15-LNUM_SUB_AFUS:0];
 
