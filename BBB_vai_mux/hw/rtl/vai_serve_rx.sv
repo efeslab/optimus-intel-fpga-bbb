@@ -138,7 +138,7 @@ module vai_serve_rx # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
         T3_c0_mem_hdr.mdata[15-VMID_WIDTH:0]     =  T2_c0.hdr.mdata[15-VMID_WIDTH:0];
 
         /* candidate mmio request */
-        T3_c0_mmio_hdr.address[CCIP_MMIOADDR_WIDTH:6]  =   0;
+        T3_c0_mmio_hdr.address[CCIP_MMIOADDR_WIDTH-1:6]  =   0;
         T3_c0_mmio_hdr.address[5:0]  =  T2_mmio_req_hdr.address[5:0];
         T3_c0_mmio_hdr.length   =  T2_mmio_req_hdr.length;
         T3_c0_mmio_hdr.rsvd     =  T2_mmio_req_hdr.rsvd;

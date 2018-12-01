@@ -89,7 +89,7 @@ module vai_mgr_afu # (parameter NUM_SUB_AFUS=8)
         else
         begin
             T2_vmid <= (T1_mmio_req_hdr.address[7:1] - 6);
-            T2_data <= T1_mmio_data;
+            T2_data[63:0] <= T1_mmio_data;
             T2_tid <= T1_mmio_req_hdr.tid;
             /* 0 <= vmid < NUM_SUB_AFUS */
             T2_is_offset <= (T1_mmio_req_hdr.address[7:1] >= 6 

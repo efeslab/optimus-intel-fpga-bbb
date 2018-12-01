@@ -44,12 +44,12 @@ module vai_mux # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
     inst_vai_mgr_afu(
         .pClk(pClk),
         .pClkDiv2(pClkDiv2),
-        .pClkDiv4(pClkDiv4),
-        .uClk_usr(uClk_usr),
-        .uClk_usrDiv2(uClk_usrDiv2),
-        .pck_cp2af_softReset(pck_cp2af_softReset),
-        .pck_cp2af_pwrState(pck_cp2af_pwrState),
-        .pck_cp2af_error(pck_cp2af_error),
+        .pClkDiv4(),
+        .uClk_usr(),
+        .uClk_usrDiv2(),
+        .pck_cp2af_softReset(SoftReset),
+        .pck_cp2af_pwrState(up_PwrState),
+        .pck_cp2af_error(up_Error),
         .pck_cp2af_sRx(mgr_RxPort),
         .pck_af2cp_sTx(mgr_TxPort),
         .offset_array(offset_array),
@@ -91,7 +91,7 @@ module vai_mux # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
     t_if_ccip_Rx legacy_afu_RxPort[NUM_SUB_AFUS:0];
     ccip_mux_legacy #(
         .NUM_SUB_AFUS(NUM_SUB_AFUS+1),
-        .NUM_PIPE_STAGES(0)
+        .NUM_PIPE_STAGES(NUM_PIPE_STAGES)
     )
     inst_ccip_mux_legacy(
         .pClk(pClk),
