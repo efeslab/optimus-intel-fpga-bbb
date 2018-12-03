@@ -2,7 +2,7 @@
 ## Common sw build rules
 ##
 
-COPT     ?= -g -O2
+COPT     ?= -g
 CPPFLAGS ?= -std=c++11
 CXX      ?= g++
 LDFLAGS  ?=
@@ -26,6 +26,9 @@ LDFLAGS +=-z noexecstack
 # data relocation and projection
 LDFLAGS +=-z relro -z now
 
+# add by gefei
+#LDFLAGS += -L/usr/local/lib64
+
 # stack buffer overrun detection
 # Note that CentOS 7 has gcc 4.8 by default.  When we switch
 # to a system with gcc 4.9 or newer this should be changed to
@@ -43,11 +46,12 @@ CFLAGS +=-D_FORTIFY_SOURCE=2
 CFLAGS +=-Wformat -Wformat-security
 
 ifeq (,$(DESTDIR))
-ifneq (,$(prefix))
+ifeq (,$(prefix))
+prefix = /usr/local
+endif
 CPPFLAGS += -I$(prefix)/include
 LDFLAGS  += -L$(prefix)/lib -Wl,-rpath-link -Wl,$(prefix)/lib -Wl,-rpath -Wl,$(prefix)/lib \
             -L$(prefix)/lib64 -Wl,-rpath-link -Wl,$(prefix)/lib64 -Wl,-rpath -Wl,$(prefix)/lib64
-endif
 else
 ifeq (,$(prefix))
 prefix = /usr/local
@@ -61,3 +65,5 @@ LDFLAGS += -luuid
 
 FPGA_LIBS = -lopae-c
 ASE_LIBS = -lopae-c-ase
+VAI_FLAGS = -I${HOME}/vai-ase/include
+VAI_ASE_LIBS = -L${HOME}/vai-ase/lib64 -lopae-c-vai-ase

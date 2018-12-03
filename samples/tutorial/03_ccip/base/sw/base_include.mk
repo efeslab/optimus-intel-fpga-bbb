@@ -10,5 +10,5 @@ BASE_FILE_INC = $(BASE_FILE_PATH)/opae_svc_wrapper.h $(BASE_FILE_PATH)/csr_mgr.h
 
 VPATH = .:$(BASE_FILE_PATH)
 
-CPPFLAGS += -I../../base/sw
-LDFLAGS += -lboost_program_options -lMPF-cxx -lMPF -lopae-cxx-core
+CPPFLAGS += -I../../base/sw -I${HOME}/install/include
+LDFLAGS += -L${HOME}/install/lib64 -lboost_program_options -lMPF-cxx -lMPF -lopae-cxx-core
