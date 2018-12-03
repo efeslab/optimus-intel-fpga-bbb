@@ -1,0 +1,2 @@
+cci_memcpy.json
+cci_memcpy_afu.sv
