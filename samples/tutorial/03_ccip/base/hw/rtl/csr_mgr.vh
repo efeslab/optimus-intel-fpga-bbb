@@ -50,7 +50,7 @@ typedef logic [NUM_CSR_MGR_COUNTER_BITS - 1 : 0] t_csr_mgr_counter;
 // The CSR definitions here are generic.  The meanings of CSR locations
 // are determined by individual applications.
 //
-localparam NUM_APP_CSRS = 8;
+localparam NUM_APP_CSRS = 16;
 
 interface app_csrs();
 
