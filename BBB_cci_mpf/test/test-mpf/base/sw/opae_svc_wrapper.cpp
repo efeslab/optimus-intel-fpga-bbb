@@ -38,25 +38,20 @@
 #include "opae_svc_wrapper.h"
 
 using namespace std;
+using namespace opae::fpga::types;
+using namespace opae::fpga::bbb::mpf::types;
 
 
-OPAE_SVC_WRAPPER::OPAE_SVC_WRAPPER(bool use_hw) :
-    accel_handle(NULL),
-    mpf_handle(NULL),
-    is_ok(true),
+OPAE_SVC_WRAPPER::OPAE_SVC_WRAPPER(const char *accel_uuid) :
+    accel(NULL),
+    mpf(NULL),
+    is_ok(false),
     is_simulated(false)
 {
-}
-
-
-OPAE_SVC_WRAPPER::~OPAE_SVC_WRAPPER()
-{
-}
-
-
-int OPAE_SVC_WRAPPER::initialize(const char *accel_uuid)
-{
     fpga_result r;
+
+    // Don't print verbose messages in ASE by default
+    setenv("ASE_LOG", "0", 0);
 
     // Is the hardware simulated with ASE?
     is_simulated = probeForASE();
@@ -65,26 +60,22 @@ int OPAE_SVC_WRAPPER::initialize(const char *accel_uuid)
     r = findAndOpenAccel(accel_uuid);
 
     is_ok = (FPGA_OK == r);
-
-    return int(r);
 }
 
 
-int OPAE_SVC_WRAPPER::terminate()
+OPAE_SVC_WRAPPER::~OPAE_SVC_WRAPPER()
 {
-    mpfDisconnect(mpf_handle);
-    fpgaUnmapMMIO(accel_handle, 0);
-    fpgaClose(accel_handle);
-
-    return 0;
+    if (mpf != nullptr)
+    {
+        mpf->close();
+    }
 }
 
 
-void*
-OPAE_SVC_WRAPPER::allocBuffer(size_t nBytes, uint64_t* ioAddress)
+shared_buffer::ptr_t
+OPAE_SVC_WRAPPER::allocBuffer(size_t nBytes)
 {
     fpga_result r;
-    void* va;
 
     //
     // Allocate an I/O buffer shared with the FPGA.  When VTP is present
@@ -95,125 +86,109 @@ OPAE_SVC_WRAPPER::allocBuffer(size_t nBytes, uint64_t* ioAddress)
     // allocating one page per invocation.
     //
 
-    if (mpfVtpIsAvailable(mpf_handle))
+    shared_buffer::ptr_t buf;
+
+    if ((mpf != nullptr) && mpfVtpIsAvailable(*mpf))
     {
         // VTP is available.  Use it to get a virtually contiguous region.
         // The region may be composed of multiple non-contiguous physical
         // pages.
-        r = mpfVtpBufferAllocate(mpf_handle, nBytes, &va);
-        if (FPGA_OK != r) return NULL;
-
-        if (ioAddress)
-        {
-            *ioAddress = mpfVtpGetIOAddress(mpf_handle, va);
-        }
+        buf = mpf_shared_buffer::allocate(mpf, nBytes);
     }
     else
     {
         // VTP is not available.  Map a page without a TLB entry.  nBytes
         // must not be larger than a page.
-        uint64_t wsid;
-        r = fpgaPrepareBuffer(accel_handle, nBytes, &va, &wsid, 0);
-        if (FPGA_OK != r) return NULL;
-
-        if (ioAddress)
-        {
-            r = fpgaGetIOAddress(accel_handle, wsid, ioAddress);
-            if (FPGA_OK != r) return NULL;
-        }
+        buf = shared_buffer::allocate(accel, nBytes);
     }
 
-    return va;
+    return buf;
 }
 
-void
-OPAE_SVC_WRAPPER::freeBuffer(void* va)
+
+shared_buffer::ptr_t
+OPAE_SVC_WRAPPER::attachBuffer(void* addr, size_t nBytes)
 {
-    // For now this class only handles VTP cleanly.  Unmanaged pages
-    // aren't released.  The kernel will automatically release them
-    // at the end of a run.
-    if (mpfVtpIsAvailable(mpf_handle))
+    fpga_result r;
+
+    //
+    // Allocate an I/O buffer shared with the FPGA.  When VTP is present
+    // the FPGA-side address translation allows us to allocate multi-page,
+    // virtually contiguous buffers.  When VTP is not present the
+    // accelerator must manage physical addresses on its own.  In that case,
+    // the I/O buffer allocation (fpgaPrepareBuffer) is limited to
+    // allocating one page per invocation.
+    //
+
+    shared_buffer::ptr_t buf;
+
+    if ((mpf != nullptr) && mpfVtpIsAvailable(*mpf))
     {
-        mpfVtpBufferFree(mpf_handle, va);
+        // VTP is available.  Use it to get a virtually contiguous region.
+        // The region may be composed of multiple non-contiguous physical
+        // pages.
+        buf = mpf_shared_buffer::attach(mpf, (uint8_t*)addr, nBytes);
     }
+    else
+    {
+        // VTP is not available.  Map a page without a TLB entry.  nBytes
+        // must not be larger than a page.
+        buf = shared_buffer::attach(accel, (uint8_t*)addr, nBytes);
+    }
+
+    return buf;
 }
 
 
 fpga_result
 OPAE_SVC_WRAPPER::findAndOpenAccel(const char* accel_uuid)
 {
-    fpga_result r;
+    // Look for accelerator with AFU ID
+    auto filter = properties::get();
+    filter->guid.parse(accel_uuid);
+    filter->type = FPGA_ACCELERATOR;
 
-    // Set up a filter that will search for an accelerator
-    fpga_properties filter = NULL;
-    fpgaGetProperties(NULL, &filter);
-    fpgaPropertiesSetObjectType(filter, FPGA_ACCELERATOR);
-
-    // Add the desired UUID to the filter
-    fpga_guid guid;
-    uuid_parse(accel_uuid, guid);
-    fpgaPropertiesSetGUID(filter, guid);
-
-    // How many accelerators match the requested properties?
-    uint32_t max_tokens;
-    fpgaEnumerate(&filter, 1, NULL, 0, &max_tokens);
-    if (0 == max_tokens)
+    std::vector<token::ptr_t> tokens;
+    try
     {
-        cerr << "FPGA with accelerator uuid " << accel_uuid << " not found!" << endl << endl;
-        fpgaDestroyProperties(&filter);
+        tokens = token::enumerate({filter});
+    }
+    catch (const opae::fpga::types::no_driver& nd)
+    {
+        std::cerr << "Failed to load FPGA driver. Is an FPGA present on the machine?"
+                  << std::endl;
         return FPGA_NOT_FOUND;
     }
 
-    // Now that the number of matches is known, allocate a token vector
-    // large enough to hold them.
-    fpga_token* tokens = new fpga_token[max_tokens];
-    if (NULL == tokens)
+    // Assert we have found at least one
+    if (tokens.size() < 1)
     {
-        fpgaDestroyProperties(&filter);
-        return FPGA_NO_MEMORY;
+        std::cerr << "FPGA with accelerator UUID " << accel_uuid << " not found." << std::endl;
+        return FPGA_NOT_FOUND;
     }
 
-    // Enumerate and get the tokens
-    uint32_t num_matches;
-    fpgaEnumerate(&filter, 1, tokens, max_tokens, &num_matches);
-
-    // Not needed anymore
-    fpgaDestroyProperties(&filter);
-
-    // Try to open a matching accelerator.  fpgaOpen() will fail if the
-    // accelerator is already in use.
-    fpga_token accel_token;
-    r  = FPGA_NOT_FOUND;
-    for (uint32_t i = 0; i < num_matches; i++)
+    // Loop through all the matching accelerators, looking for one that isn't busy.
+    for (int f = 0; f < tokens.size(); f += 1)
     {
-        accel_token = tokens[i];
-        r = fpgaOpen(accel_token, &accel_handle, 0);
-        // Success?
-        if (FPGA_OK == r) break;
-    }
-    if (FPGA_OK != r)
-    {
-        cerr << "No accelerator available with uuid " << accel_uuid << endl << endl;
-        goto done;
+        token::ptr_t tok = tokens[f];
+        try
+        {
+            // Connect to an FPGA and map MMIO
+            accel = handle::open(tok, 0);
+
+            // Connect to MPF
+            mpf = mpf_handle::open(accel, 0, 0, 0);
+
+            return FPGA_OK;
+        }
+        catch (const opae::fpga::types::busy &e)
+        {
+            // No action when an FPGA is busy. We will try all that are available.
+        }
     }
 
-    // Map MMIO
-    fpgaMapMMIO(accel_handle, 0, NULL);
-
-    // Connect to MPF
-    r = mpfConnect(accel_handle, 0, 0, &mpf_handle, 0/*MPF_FLAG_DEBUG*/);
-    if (FPGA_OK != r) goto done;
-
-  done:
-    // Done with tokens
-    for (uint32_t i = 0; i < num_matches; i++)
-    {
-        fpgaDestroyToken(&tokens[i]);
-    }
-
-    delete[] tokens;
-
-    return r;
+    std::cerr << ((tokens.size() == 1) ? "FPGA is" : "All FPGAs are") << " busy." << std::endl;
+    return FPGA_BUSY;
 }
 
 
@@ -223,27 +198,20 @@ OPAE_SVC_WRAPPER::findAndOpenAccel(const char* accel_uuid)
 bool
 OPAE_SVC_WRAPPER::probeForASE()
 {
-    fpga_result r = FPGA_OK;
-    uint16_t device_id = 0;
+    // The BBS ID of the ASE device is 0xa5e.
+    auto dev_filter = properties::get();
+    dev_filter->type = FPGA_DEVICE;
 
-    // Connect to the FPGA management engine
-    fpga_properties filter = NULL;
-    fpgaGetProperties(NULL, &filter);
-    fpgaPropertiesSetObjectType(filter, FPGA_DEVICE);
-
-    // Connecting to one is sufficient to find ASE.
-    uint32_t num_matches = 1;
-    fpga_token fme_token;
-    fpgaEnumerate(&filter, 1, &fme_token, 1, &num_matches);
-    if (0 != num_matches)
+    try
     {
-        // Retrieve the device ID of the FME
-        fpgaGetProperties(fme_token, &filter);
-        r = fpgaPropertiesGetDeviceID(filter, &device_id);
-        fpgaDestroyToken(&fme_token);
-    }
-    fpgaDestroyProperties(&filter);
+        auto tokens = token::enumerate({dev_filter});
+        if (tokens.size() == 0) return false;
 
-    // ASE's device ID is 0xa5ea5e
-    return ((FPGA_OK == r) && (0xa5ea5e == device_id));
+        auto dev_props = properties::get(tokens[0]);
+        return (0xa5e == dev_props->bbs_id);
+    }
+    catch (const opae::fpga::types::no_driver& nd)
+    {
+        return false;
+    }
 }

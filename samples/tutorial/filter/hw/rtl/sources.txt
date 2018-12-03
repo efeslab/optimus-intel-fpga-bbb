@@ -1,0 +1,6 @@
+filter_cci.json
+
++incdir+.
+filter_afu.sv
+./ip/fifo_fifo_170_qq322xi.v
+./ip/fifo.v
