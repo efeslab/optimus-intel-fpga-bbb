@@ -7,7 +7,7 @@ module vai_mux # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
     /* upstream ports */
     input   wire                    SoftReset,                          // upstream reset
     input   wire                    up_Error,
-    input   wire                    up_PwrState,
+    input   wire [1:0]              up_PwrState,
     input   t_if_ccip_Rx            up_RxPort,                          // upstream Rx response port
     output  t_if_ccip_Tx            up_TxPort,                          // upstream Tx request port
     /* downstream ports */
