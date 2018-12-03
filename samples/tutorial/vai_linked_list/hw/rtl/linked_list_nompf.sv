@@ -158,6 +158,7 @@ module ccip_std_afu
                     sTx.c2.data[63:60] <= 4'h1;
                     // End of list (last entry in list)
                     sTx.c2.data[40] <= 1'b1;
+					sTx.c2.data[11:0] <= `AFU_IMAGE_VAI_MAGIC;
                 end
 
               // AFU_ID_L
