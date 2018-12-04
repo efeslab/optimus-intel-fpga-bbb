@@ -68,6 +68,7 @@ module vai_mgr_afu # (parameter NUM_SUB_AFUS=8)
     logic T2_is_dfh;
     logic T2_is_id_lo;
     logic T2_is_id_hi;
+    logic T2_is_nafus;
     logic T2_is_read;
     logic T2_is_write;
 
@@ -85,6 +86,7 @@ module vai_mgr_afu # (parameter NUM_SUB_AFUS=8)
             T2_is_dfh <= 0;
             T2_is_id_lo <= 0;
             T2_is_id_hi <= 0;
+            T2_is_nafus <= 0;
         end
         else
         begin
@@ -99,6 +101,7 @@ module vai_mgr_afu # (parameter NUM_SUB_AFUS=8)
             T2_is_id_lo <= (T1_mmio_req_hdr.address == 2);
             T2_is_id_hi <= (T1_mmio_req_hdr.address == 4);
             T2_is_reset <= (T1_mmio_req_hdr.address == 6);
+            T2_is_nafus <= (T1_mmio_req_hdr.address == 8);
 
             T2_is_read <= T1_is_mmio_read;
             T2_is_write <= T1_is_mmio_write;
@@ -152,6 +155,10 @@ module vai_mgr_afu # (parameter NUM_SUB_AFUS=8)
                 else if (T2_is_reset)
                 begin
                     T3_Tx_c2.data <= sub_afu_reset;
+                end
+                else if (T2_is_nafus)
+                begin
+                    T3_Tx_c2.data <= NUM_SUB_AFUS;
                 end
                 else if (T2_is_dfh)
                 begin
