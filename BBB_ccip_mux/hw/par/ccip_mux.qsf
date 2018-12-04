@@ -5,3 +5,17 @@
 set_instance_assignment -name PLACE_REGION "50 30 56 60" -to inst_green_bs|inst_ccip_std_afu|ccip_mux_U0|up_TxPort_T3.c1*
 set_instance_assignment -name RESERVE_PLACE_REGION OFF -to inst_green_bs|inst_ccip_std_afu|ccip_mux_U0|up_TxPort_T3.c1*
 set_instance_assignment -name CORE_ONLY_PLACE_REGION ON -to inst_green_bs|inst_ccip_std_afu|ccip_mux_U0|up_TxPort_T3.c1*
+
+set this_script [dict get [ info frame 0 ] file]
+set CCI_MUX_SRC [file join {*}[lrange [file split $this_script] 0 end-3]]
+
+set_global_assignment -name SEARCH_PATH $CCI_MUX_SRC/hw/rtl
+
+set_global_assignment -name VERILOG_FILE $CCI_MUX_SRC/hw/rtl/a10_ram_sdp_wysiwyg.v
+set_global_assignment -name SYSTEMVERILOG_FILE $CCI_MUX_SRC/hw/rtl/ccip_front_end.sv
+set_global_assignment -name SYSTEMVERILOG_FILE $CCI_MUX_SRC/hw/rtl/ccip_intf_regs.sv
+set_global_assignment -name SYSTEMVERILOG_FILE $CCI_MUX_SRC/hw/rtl/ccip_mux.sv
+set_global_assignment -name SYSTEMVERILOG_FILE $CCI_MUX_SRC/hw/rtl/fair_arbiter.sv
+set_global_assignment -name VERILOG_FILE $CCI_MUX_SRC/hw/rtl/gram_sdp.v
+set_global_assignment -name VERILOG_FILE $CCI_MUX_SRC/hw/rtl/sync_C1Tx_fifo.v
+
