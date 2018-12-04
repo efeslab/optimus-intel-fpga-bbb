@@ -90,11 +90,11 @@ module vai_mux # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
     assign audit_TxPort[NUM_SUB_AFUS] = mgr_TxPort;
 
     t_if_ccip_Rx legacy_afu_RxPort[NUM_SUB_AFUS:0];
-    ccip_mux_legacy #(
+    ccip_mux_buf #(
         .NUM_SUB_AFUS(NUM_SUB_AFUS+1),
         .NUM_PIPE_STAGES(NUM_PIPE_STAGES)
     )
-    inst_ccip_mux_legacy(
+    inst_ccip_mux_buf(
         .pClk(pClk),
         .pClkDiv2(pClkDiv2),
         .SoftReset(SoftReset),

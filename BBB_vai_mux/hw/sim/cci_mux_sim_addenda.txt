@@ -13,3 +13,5 @@
 ../rtl/vai_mux.sv
 ../rtl/vai_serve_rx.sv
 ../rtl/vai_mgr_afu.sv
+
+../rtl/ccip_mux_buf.sv 
