@@ -343,6 +343,7 @@ module ccip_std_afu
 	logic can_read_stage_2;
 	logic [31:0] can_read_lreg;
 	logic [31:0] can_read_rreg;
+	t_ccip_clAddr src_addr_buf;
 	assign read_minus_write = csr_mem_read_idx - write_resp_cnt;
 	assign read_req_done = csr_mem_read_idx == csr_num_lines;
 	// send memory read requests
@@ -357,6 +358,8 @@ module ccip_std_afu
 			can_read_stage_2 <= 1'b0;
 			read_stage_2 <= 1'b0;
 		end
+		if (csr_ctl_start)
+			src_addr_buf <= csr_src_addr - 1;
 		if (state == STATE_RUN)
 		begin
 			if (!sRx.c0TxAlmFull && !sRx.c1TxAlmFull)
@@ -384,6 +387,7 @@ module ccip_std_afu
 			begin
 				read_stage_2 <= 1'b1;
 				csr_mem_read_idx <= csr_mem_read_idx + 1;
+				src_addr_buf <= src_addr_buf + 1;
 			end
 			else
 			begin
@@ -396,7 +400,7 @@ module ccip_std_afu
 				sTx.c0.hdr.vc_sel <= eVC_VL0;
 				sTx.c0.hdr.cl_len <= eCL_LEN_1;
 				sTx.c0.hdr.req_type <= eREQ_RDLINE_I;
-				sTx.c0.hdr.address <= csr_src_addr + csr_mem_read_idx;
+				sTx.c0.hdr.address <= src_addr_buf;
 				sTx.c0.hdr.mdata <= csr_mem_read_idx[15:0]; // this counter will wrap around at 0x7fff
 			end
 			else begin
