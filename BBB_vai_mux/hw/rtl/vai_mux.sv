@@ -38,6 +38,7 @@ module vai_mux # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
 
     t_if_ccip_Tx mgr_TxPort;
 
+    logic [63:0] afu_vai_reset;
     vai_mgr_afu #(
         .NUM_SUB_AFUS(NUM_SUB_AFUS)
     )
@@ -53,7 +54,7 @@ module vai_mux # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
         .pck_cp2af_sRx(mgr_RxPort),
         .pck_af2cp_sTx(mgr_TxPort),
         .offset_array(offset_array),
-        .sub_afu_reset()
+        .sub_afu_reset(afu_vai_reset)
         );
 
     logic afu_SoftReset_ext [NUM_SUB_AFUS:0];
@@ -64,7 +65,7 @@ module vai_mux # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
     begin
         for (int i=0; i<NUM_SUB_AFUS; i++)
         begin
-            afu_SoftReset[i] = afu_SoftReset_ext[i];
+            afu_SoftReset[i] = afu_vai_reset[i] || afu_SoftReset_ext[i];
             afu_PwrState[i] = afu_PwrState_ext[i];
             afu_Error[i] = afu_Error[i];
         end
