@@ -5,7 +5,7 @@ if (! exists("channel_number")) channel_number = "0"
 
 # Does ROB data exist?
 plot_rob = 0
-file_exists = system("file stats/lat_ord_mcl1_vc0.dat | grep ERROR") 
+file_exists = system("file stats/lat_ord_mcl1_vc0.dat | grep -i 'no such file'")
 if (strlen(file_exists) == 0) {
     plot_rob = 1
 }
@@ -14,6 +14,7 @@ if (strlen(file_exists) == 0) {
 afu_mhz = system("grep 'AFU MHz' stats/lat_mcl1_vc0.dat | sed -e 's/.*MHz = //'")
 cycle_time = 1000.0 / afu_mhz
 print sprintf("AFU cycle time: %f ns", cycle_time)
+platform = platform . " (" . afu_mhz . "MHz)"
 
 set term postscript color enhanced font "Helvetica" 17 butt dashed
 

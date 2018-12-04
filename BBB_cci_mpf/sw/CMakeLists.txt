@@ -46,6 +46,8 @@ find_package(Threads REQUIRED)
 include(CheckIncludeFile)
 
 if (NOT CMAKE_VERSION VERSION_LESS "3.1")
+    set (CMAKE_CXX_STANDARD 11)
+
     if (NOT CMAKE_C_COMPILER_VERSION VERSION_LESS 4.7)
         # New CMake, new enough compiler, ideal case...
         set (CMAKE_C_STANDARD 11)
@@ -58,6 +60,8 @@ if (NOT CMAKE_VERSION VERSION_LESS "3.1")
     endif ()
 else ()
     # Old version of CMake doesn't know how to set C standard
+    set (CMAKE_CXX_FLAGS "-std=c++11 ${CMAKE_CXX_FLAGS}")
+
     if (NOT CMAKE_C_COMPILER_VERSION VERSION_LESS 4.7)
         set (CMAKE_C_FLAGS "--std=gnu11 ${CMAKE_C_FLAGS}")
     else ()
@@ -75,8 +79,8 @@ endif(DOXYGEN_FOUND)
 ## Allow specification of an alternate path to the FPGA library include files
 ## and binary.
 ##
-set (OPAELIB_LIBS_PATH "")
-set (OPAELIB_INC_PATH "")
+set (OPAELIB_LIBS_PATH "" CACHE STRING "OPAE libs path")
+set (OPAELIB_INC_PATH "" CACHE STRING "OPAE include path")
 
 if (WIN32)
     if("X$ENV{OPAELIB_ROOT}X" STREQUAL "XX")
