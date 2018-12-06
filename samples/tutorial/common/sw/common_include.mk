@@ -40,7 +40,7 @@ CFLAGS +=-fPIE -fPIC
 LDFLAGS +=-pie
 
 # fortify source
-CFLAGS +=-D_FORTIFY_SOURCE=2
+#CFLAGS +=-D_FORTIFY_SOURCE=2
 
 # format string vulnerabilities
 CFLAGS +=-Wformat -Wformat-security
@@ -61,9 +61,8 @@ LDFLAGS  += -L$(DESTDIR)$(prefix)/lib -Wl,-rpath-link -Wl,$(prefix)/lib -Wl,-rpa
             -L$(DESTDIR)$(prefix)/lib64 -Wl,-rpath-link -Wl,$(prefix)/lib64 -Wl,-rpath -Wl,$(DESTDIR)$(prefix)/lib64
 endif
 
-LDFLAGS += -luuid
-
-FPGA_LIBS = -lopae-c
-ASE_LIBS = -lopae-c-ase
+VAI_GUEST_DIR ?= ../../../../../vai-guest-module/
+CFLAGS += -I$(VAI_GUEST_DIR)/include
+FPGA_LIBS = -L$(VAI_GUEST_DIR) -lvai
+ASE_LIBS = -L${HOME}/vai-ase/lib64 -lopae-c-vai-ase
 VAI_FLAGS = -I${HOME}/vai-ase/include
-VAI_ASE_LIBS = -L${HOME}/vai-ase/lib64 -lopae-c-vai-ase

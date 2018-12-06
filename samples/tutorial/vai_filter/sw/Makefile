@@ -21,11 +21,11 @@ $(AFU_JSON_INFO): ../hw/rtl/$(TEST)_cci.json | objdir
 	afu_json_mgr json-info --afu-json=$^ --c-hdr=$@
 $(OBJS): $(AFU_JSON_INFO)
 
-#$(TEST): $(OBJS)
-#	$(CC) -o $@ $^ $(LDFLAGS) $(FPGA_LIBS)
+$(TEST): $(OBJS)
+	$(CC) -o $@ $^ $(LDFLAGS) $(FPGA_LIBS)
 
 $(TEST)_ase: $(OBJS)
-	$(CC) -o $@ $^ $(LDFLAGS) $(VAI_ASE_LIBS)
+	$(CC) -o $@ $^ $(LDFLAGS) $(ASE_LIBS)
 
 $(OBJDIR)/%.o: %.c | objdir
 	$(CC) $(CFLAGS) $(VAI_FLAGS) -c $< -o $@
