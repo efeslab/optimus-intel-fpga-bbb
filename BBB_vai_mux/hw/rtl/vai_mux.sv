@@ -24,13 +24,14 @@ module vai_mux # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
     t_if_ccip_Rx pre_afu_RxPort[NUM_SUB_AFUS-1:0];
     t_if_ccip_Rx mgr_RxPort;
     logic [63:0] offset_array [NUM_SUB_AFUS-1:0];
+    logic ireg_SoftResetMgr;
 
     vai_serve_rx #(
         .NUM_SUB_AFUS(NUM_SUB_AFUS)
     )
     inst_vai_serve_rx(
         .clk(pClk),
-        .reset(SoftReset),
+        .reset(ireg_SoftResetMgr),
         .up_RxPort(up_RxPort),
         .afu_RxPort(pre_afu_RxPort),
         .mgr_RxPort(mgr_RxPort)
@@ -69,6 +70,8 @@ module vai_mux # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
             afu_PwrState[i] <= afu_PwrState_ext[i];
             afu_Error[i] <= afu_Error_ext[i];
         end
+
+        ireg_SoftResetMgr <= SoftReset;
     end
 
     /* audit Tx port for each afu */
