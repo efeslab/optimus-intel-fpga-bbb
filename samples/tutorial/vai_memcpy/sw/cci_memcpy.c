@@ -115,7 +115,12 @@ int main(int argc, char *argv[])
         printf("START!!!\n");
         struct debug_csr dc;
         // Spin, waiting for the value in memory to change to something non-zero.
+#ifdef TIMESLICING
+        uint64_t ts_state;
+        while (!vai_afu_mmio_read(conn, MMIO_CSR_TS_STATE, &ts_state) && ts_state!=2UL)
+#else
         while (0 == status_buf->completion)
+#endif
         {
             if (!get_debug_csr(conn, &dc))
                 print_csr(&dc);
