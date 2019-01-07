@@ -89,11 +89,7 @@ module vai_mux_15
     assign audit_TxPort[15] = mgr_TxPort;
 
     t_if_ccip_Rx legacy_afu_RxPort[15:0];
-    nested_mux_16 #(
-        .NUM_SUB_AFUS(16),
-        .NUM_PIPE_STAGES(0)
-    )
-    inst_ccip_mux_nested(
+    nested_mux_16 inst_ccip_mux_nested(
         .pClk(pClk),
         .pClkDiv2(pClkDiv2),
         .SoftReset(SoftReset),
