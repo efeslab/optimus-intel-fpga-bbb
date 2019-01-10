@@ -7,17 +7,20 @@ module tx_to_fifo #(parameter N_ENTRIES=32)
     input wire reset,
     input t_if_ccip_Tx afu_TxPort,
 
-    output wire out_fifo_c0_almostFull,
+    output logic out_fifo_c0_almostFull,
+    output logic out_fifo_c0_notEmpty,
     output t_if_ccip_c0_Tx out_fifo_c0_first,
-    input wire in_fifo_c0_deq_en,
+    input logic in_fifo_c0_deq_en,
 
-    output wire out_fifo_c1_almostFull,
+    output logic out_fifo_c1_almostFull,
+    output logic out_fifo_c1_notEmpty,
     output t_if_ccip_c1_Tx out_fifo_c1_first,
-    input wire in_fifo_c1_deq_en,
+    input logic in_fifo_c1_deq_en,
 
-    output wire out_fifo_c2_almostFull,
+    output logic out_fifo_c2_almostFull,
+    output logic out_fifo_c2_notEmpty,
     output t_if_ccip_c2_Tx out_fifo_c2_first,
-    input wire in_fifo_c2_deq_en
+    input logic in_fifo_c2_deq_en
 );
 
     /* fifo */
@@ -124,7 +127,7 @@ module tx_to_fifo #(parameter N_ENTRIES=32)
     t_if_ccip_c1_Tx T2_c1;
     t_if_ccip_c2_Tx T2_c2;
 
-    always_ff @(posedge)
+    always_ff @(posedge clk)
     begin
         if (reset)
         begin
@@ -156,7 +159,7 @@ module tx_to_fifo #(parameter N_ENTRIES=32)
                 fifo_c1_enq_en <= 0;
             end
 
-            if (T1_c2.valid & fifo_c2_notFull)
+            if (T1_c2.mmioRdValid & fifo_c2_notFull)
             begin
                 fifo_c2_enq_data <= T1_c2;
                 fifo_c2_enq_en <= 1;
@@ -173,14 +176,17 @@ module tx_to_fifo #(parameter N_ENTRIES=32)
     always_comb
     begin
         out_fifo_c0_almostFull = fifo_c0_almostFull;
+        out_fifo_c0_notEmpty = fifo_c0_notEmpty;
         out_fifo_c0_first = fifo_c0_first;
         fifo_c0_deq_en = in_fifo_c0_deq_en;
 
         out_fifo_c1_almostFull = fifo_c1_almostFull;
+        out_fifo_c1_notEmpty = fifo_c1_notEmpty;
         out_fifo_c1_first = fifo_c1_first;
         fifo_c1_deq_en = in_fifo_c1_deq_en;
 
         out_fifo_c2_almostFull = fifo_c2_almostFull;
+        out_fifo_c2_notEmpty = fifo_c2_notEmpty;
         out_fifo_c2_first = fifo_c2_first;
         fifo_c2_deq_en = in_fifo_c2_deq_en;
     end

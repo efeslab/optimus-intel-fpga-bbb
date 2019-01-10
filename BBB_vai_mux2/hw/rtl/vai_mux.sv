@@ -89,25 +89,21 @@ module vai_mux # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
     /* we utilize the legacy ccip_mux to send packet */
     assign audit_TxPort[NUM_SUB_AFUS] = mgr_TxPort;
 
-    t_if_ccip_Rx legacy_afu_RxPort[NUM_SUB_AFUS:0];
-    ccip_mux_buf #(
-        .NUM_SUB_AFUS(NUM_SUB_AFUS+1),
-        .NUM_PIPE_STAGES(NUM_PIPE_STAGES)
+    logic c0_almFull [NUM_SUB_AFUS:0];
+    logic c1_almFull [NUM_SUB_AFUS:0];
+
+    tx_mux #(
+        .N_SUBAFUS(NUM_SUB_AFUS+1)
     )
-    inst_ccip_mux_buf(
-        .pClk(pClk),
-        .pClkDiv2(pClkDiv2),
-        .SoftReset(SoftReset),
-        .up_Error(up_Error),
-        .up_PwrState(up_PwrState),
-        .up_RxPort(up_RxPort), /* we only use this to count packets */
-        .up_TxPort(up_TxPort),
-        .afu_SoftReset(afu_SoftReset_ext),
-        .afu_PwrState(afu_PwrState_ext),
-        .afu_Error(afu_Error_ext),
-        .afu_RxPort(legacy_afu_RxPort),
-        .afu_TxPort(audit_TxPort)
+    inst_tx_mux(
+        .clk(pClk),
+        .reset(SoftReset),
+        .in(audit_TxPort),
+        .out(up_TxPort),
+        .c0_almFull(c0_almFull),
+        .c1_almFull(c1_almFull)
         );
+
 
     generate
         genvar n;
@@ -116,8 +112,8 @@ module vai_mux # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
             always_comb
             begin
                 afu_RxPort[n] = pre_afu_RxPort[n]; /* c0 & c1 */
-                afu_RxPort[n].c0TxAlmFull = legacy_afu_RxPort[n].c0TxAlmFull;
-                afu_RxPort[n].c1TxAlmFull = legacy_afu_RxPort[n].c1TxAlmFull;
+                afu_RxPort[n].c0TxAlmFull = c0_almFull[n];
+                afu_RxPort[n].c1TxAlmFull = c1_almFull[n];
             end
         end
     endgenerate

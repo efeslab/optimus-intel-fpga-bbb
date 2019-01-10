@@ -34,7 +34,6 @@
 //   THRESHOLD or fewer slots are free, stored in block RAM.
 //
 
-`include "cci_mpf_platform.vh"
 
 module fifo_bram
   #(
@@ -91,7 +90,7 @@ module fifo_bram
         .overflow_checking("OFF"),
         .underflow_checking("OFF"),
         .use_eab("ON"),
-        .add_ram_output_register("ON")
+        .add_ram_output_register("OFF")
         )
       scfifo_component
        (

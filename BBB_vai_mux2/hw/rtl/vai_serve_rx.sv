@@ -13,7 +13,7 @@ module vai_serve_rx # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
 );
 
     localparam LNUM_SUB_AFUS = $clog2(NUM_SUB_AFUS);
-    localparam VMID_WIDTH = LNUM_SUB_AFUS + 1;
+    localparam VMID_WIDTH = LNUM_SUB_AFUS;
 
     /* stage T0 */
 
