@@ -84,6 +84,7 @@ module fifo_bram
         .lpm_numwords(N_ENTRIES),
         .lpm_showahead("OFF"),
         .lpm_type("scfifo"),
+        .lpm_hint("RAM_BLOCK_TYPE=MLAB"),
         .lpm_width(N_DATA_BITS),
         .lpm_widthu($clog2(N_ENTRIES)),
         .almost_full_value(N_ENTRIES - THRESHOLD),
