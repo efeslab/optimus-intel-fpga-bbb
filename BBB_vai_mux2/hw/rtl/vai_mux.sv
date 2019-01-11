@@ -19,6 +19,19 @@ module vai_mux # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
 
 );
 
+    /* SoftReset fan-out */
+
+    logic reset;
+    logic reset_fanout [NUM_SUB_AFUS:0];
+    always_ff @(posedge pClk)
+    begin
+        reset <= SoftReset;
+        for (int i=0; i<=NUM_SUB_AFUS; i++)
+        begin
+            reset_fanout[i] = reset;
+        end
+    end
+
     /* forward Rx Port */
 
     t_if_ccip_Rx pre_afu_RxPort[NUM_SUB_AFUS-1:0];
@@ -30,7 +43,7 @@ module vai_mux # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
     )
     inst_vai_serve_rx(
         .clk(pClk),
-        .reset(SoftReset),
+        .reset(reset),
         .up_RxPort(up_RxPort),
         .afu_RxPort(pre_afu_RxPort),
         .mgr_RxPort(mgr_RxPort)
@@ -48,7 +61,7 @@ module vai_mux # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
         .pClkDiv4(),
         .uClk_usr(),
         .uClk_usrDiv2(),
-        .pck_cp2af_softReset(SoftReset),
+        .pck_cp2af_softReset(reset_fanout[NUM_SUB_AFUS]),
         .pck_cp2af_pwrState(up_PwrState),
         .pck_cp2af_error(up_Error),
         .pck_cp2af_sRx(mgr_RxPort),
@@ -57,16 +70,13 @@ module vai_mux # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
         .sub_afu_reset(afu_vai_reset)
         );
 
-    logic afu_SoftReset_ext [NUM_SUB_AFUS:0];
-    logic [1:0] afu_PwrState_ext [NUM_SUB_AFUS:0];
     logic afu_Error_ext [NUM_SUB_AFUS:0];
 
     always_ff @(posedge pClk)
     begin
         for (int i=0; i<NUM_SUB_AFUS; i++)
         begin
-            afu_SoftReset[i] <= afu_vai_reset[i] | afu_SoftReset_ext[i];
-            afu_PwrState[i] <= afu_PwrState_ext[i];
+            afu_SoftReset[i] <= afu_vai_reset[i] | reset_fanout[i];
             afu_Error[i] <= afu_Error_ext[i];
         end
     end
@@ -79,7 +89,7 @@ module vai_mux # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
     )
     inst_vai_audit_tx(
         .clk(pClk),
-        .reset(SoftReset),
+        .reset(reset),
         .up_TxPort(audit_TxPort[NUM_SUB_AFUS-1:0]),
         .afu_TxPort(afu_TxPort),
         .offset_array(offset_array)
@@ -97,7 +107,7 @@ module vai_mux # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
     )
     inst_tx_mux(
         .clk(pClk),
-        .reset(SoftReset),
+        .reset(reset),
         .in(audit_TxPort),
         .out(up_TxPort),
         .c0_almFull(c0_almFull),

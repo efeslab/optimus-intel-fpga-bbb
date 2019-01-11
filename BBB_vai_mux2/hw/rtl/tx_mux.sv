@@ -13,6 +13,16 @@ module tx_mux #(parameter N_SUBAFUS=16)
     output wire c1_almFull [N_SUBAFUS-1:0]
 );
 
+    /* reset fanout */
+    logic reset_q;
+    logic reset_qq[N_SUBAFUS-1:0];
+    always_ff @(posedge clk)
+    begin
+        reset_q <= reset;
+        for (int i=0; i<N_SUBAFUS; i++)
+            reset_qq[i] <= reset_q;
+    end
+
     localparam LOG_N_SUBAFUS = $clog2(N_SUBAFUS);
 
     /* tx_to_fifo */
@@ -42,7 +52,7 @@ module tx_mux #(parameter N_SUBAFUS=16)
             )
             inst_tx_to_fifo(
                 .clk(clk),
-                .reset(reset),
+                .reset(reset_qq[i]),
                 .afu_TxPort(in[i]),
                 .out_fifo_c0_almostFull(fifo_c0_almostFull[i]),
                 .out_fifo_c0_notEmpty(fifo_c0_notEmpty[i]),
@@ -73,7 +83,7 @@ module tx_mux #(parameter N_SUBAFUS=16)
     
     always_ff @(posedge clk)
     begin
-        if (reset)
+        if (reset_q)
         begin
             T1_curr <= 0;
             T1_c0_valid <= 0;
@@ -173,7 +183,7 @@ module tx_mux #(parameter N_SUBAFUS=16)
 
     always_ff @(posedge clk)
     begin
-        if (reset)
+        if (reset_q)
         begin
             T3_Tx <= 0;
 
