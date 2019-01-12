@@ -18,4 +18,7 @@ set_global_assignment -name SYSTEMVERILOG_FILE $CCI_MUX_SRC/hw/rtl/vai_mgr_afu.s
 
 set_global_assignment -name SYSTEMVERILOG_FILE $CCI_MUX_SRC/hw/rtl/fifo_bram.sv
 set_global_assignment -name SYSTEMVERILOG_FILE $CCI_MUX_SRC/hw/rtl/tx_mux.sv
-set_global_assignment -name SYSTEMVERILOG_FILE $CCI_MUX_SRC/hw/rtl/tx_to_fifo.sv
+
+set_global_assignment -name VERILOG_FILE $CCI_MUX_SRC/hw/rtl/a10_ram_sdp_wysiwyg.v
+set_global_assignment -name VERILOG_FILE $CCI_MUX_SRC/hw/rtl/gram_sdp.v
+set_global_assignment -name VERILOG_FILE $CCI_MUX_SRC/hw/rtl/sync_C1Tx_fifo.v
