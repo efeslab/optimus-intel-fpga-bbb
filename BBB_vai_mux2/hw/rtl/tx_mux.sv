@@ -174,41 +174,34 @@ module tx_mux #(parameter N_SUBAFUS=16)
             t_if_ccip_c0_Tx T1_c0;
             always_ff @(posedge clk)
             begin
-                if (reset_qq[i])
+                if (T0_Tx.c0.valid & ~fifo_c0_full[i])
                 begin
-                    T1_c0 <= 0;
+                    fifo_c0_din[i] <= T0_Tx.c0;
+                    fifo_c0_wen[i] <= reset_qq_r[i];
                 end
                 else
                 begin
-                    if (T0_Tx.c0.valid & ~fifo_c0_full[i])
-                    begin
-                        fifo_c0_din[i] <= T0_Tx.c0;
-                        fifo_c0_wen[i] <= 1;
-                    end
-                    else
-                    begin
-                        fifo_c0_wen[i] <= 0;
-                    end
+                    fifo_c0_wen[i] <= 0;
+                end
 
-                    if (T0_Tx.c1.valid & ~fifo_c1_full[i])
-                    begin
-                        fifo_c1_din[i] <= T0_Tx.c1;
-                        fifo_c1_wen[i] <= 1;
-                    end
-                    else
-                    begin
-                        fifo_c1_wen[i] <= 0;
-                    end
+                if (T0_Tx.c1.valid & ~fifo_c1_full[i])
+                begin
+                    fifo_c1_din[i] <= T0_Tx.c1;
+                    fifo_c1_wen[i] <= reset_qq_r[i];
+                end
+                else
+                begin
+                    fifo_c1_wen[i] <= 0;
+                end
 
-                    if (T0_Tx.c2.mmioRdValid & ~fifo_c2_full[i])
-                    begin
-                        fifo_c2_din[i] <= T0_Tx.c2;
-                        fifo_c2_wen[i] <= 1;
-                    end
-                    else
-                    begin
-                        fifo_c2_wen[i] <= 0;
-                    end
+                if (T0_Tx.c2.mmioRdValid & ~fifo_c2_full[i])
+                begin
+                    fifo_c2_din[i] <= T0_Tx.c2;
+                    fifo_c2_wen[i] <= reset_qq_r[i];
+                end
+                else
+                begin
+                    fifo_c2_wen[i] <= 0;
                 end
             end
         end
@@ -228,7 +221,7 @@ module tx_mux #(parameter N_SUBAFUS=16)
     endgenerate
 
     assign T0_curr_prefetch = (T0_curr == (N_SUBAFUS-1)) ? 0 : (T0_curr+1);
-        
+ 
     always_ff @(posedge clk)
     begin
         if (reset_q)
@@ -239,27 +232,27 @@ module tx_mux #(parameter N_SUBAFUS=16)
         begin
             /* make it parallel */
             T0_curr <= T0_curr_prefetch;
+        end
 
-            for (int i=0; i<N_SUBAFUS; i++)
-            begin
-                /* We only send ack if the id of subafu match T0_curr,
-                 * plus the output of subafu is valid.
-                 * The following code can be parallized better. */
-                if (fifo_c0_dout_v[i])
-                    fifo_c0_rdack[i] <= T0_subafu_hit[i];
-                else
-                    fifo_c0_rdack[i] <= 0;
+        for (int i=0; i<N_SUBAFUS; i++)
+        begin
+            /* We only send ack if the id of subafu match T0_curr,
+             * plus the output of subafu is valid.
+             * The following code can be parallized better. */
+            if (fifo_c0_dout_v[i])
+                fifo_c0_rdack[i] <= T0_subafu_hit[i];
+            else
+                fifo_c0_rdack[i] <= 0;
 
-                if (fifo_c1_dout_v[i])
-                    fifo_c1_rdack[i] <= T0_subafu_hit[i];
-                else
-                    fifo_c1_rdack[i] <= 0;
+            if (fifo_c1_dout_v[i])
+                fifo_c1_rdack[i] <= T0_subafu_hit[i];
+            else
+                fifo_c1_rdack[i] <= 0;
 
-                if (fifo_c2_dout_v[i])
-                    fifo_c2_rdack[i] <= T0_subafu_hit[i];
-                else
-                    fifo_c2_rdack[i] <= 0;
-            end
+            if (fifo_c2_dout_v[i])
+                fifo_c2_rdack[i] <= T0_subafu_hit[i];
+            else
+                fifo_c2_rdack[i] <= 0;
         end
     end
 
