@@ -13,6 +13,8 @@ module tx_mux #(parameter N_SUBAFUS=16)
     output wire c1_almFull [N_SUBAFUS-1:0]
 );
 
+    genvar i;
+
     localparam LOGN_SUBAFUS = $clog2(N_SUBAFUS);
 
     /* --------- reset fan-out ----------- */
@@ -39,7 +41,6 @@ module tx_mux #(parameter N_SUBAFUS=16)
     logic               fifo_c0_almFull     [N_SUBAFUS-1:0];
 
     generate
-        genvar i;
         for (i=0; i<N_SUBAFUS; i++)
         begin: GEN_FIFO_C0
             sync_C1Tx_fifo #(
@@ -80,7 +81,6 @@ module tx_mux #(parameter N_SUBAFUS=16)
     logic               fifo_c1_almFull     [N_SUBAFUS-1:0];
 
     generate
-        genvar i;
         for (i=0; i<N_SUBAFUS; i++)
         begin: GEN_FIFO_C1
             sync_C1Tx_fifo #(
@@ -121,7 +121,6 @@ module tx_mux #(parameter N_SUBAFUS=16)
     logic               fifo_c2_almFull     [N_SUBAFUS-1:0];
 
     generate
-        genvar i;
         for (i=0; i<N_SUBAFUS; i++)
         begin: GEN_FIFO_C2
             sync_C1Tx_fifo #(
@@ -153,7 +152,6 @@ module tx_mux #(parameter N_SUBAFUS=16)
 
     /* ------------- enqueue ---------------- */
     generate
-        genvar i;
         for (i=0; i<N_SUBAFUS; i++)
         begin: GEN_ENQ
             /* enq: T0 */
@@ -221,7 +219,6 @@ module tx_mux #(parameter N_SUBAFUS=16)
     logic T0_subafu_hit [N_SUBAFUS-1:0];
 
     generate
-        genvar i;
         for (i=0; i<N_SUBAFUS; i++)
         begin
             assign T0_subafu_hit[i] = (T0_curr == i);
