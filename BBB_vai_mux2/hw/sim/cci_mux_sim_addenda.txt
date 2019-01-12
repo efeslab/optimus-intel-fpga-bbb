@@ -6,6 +6,7 @@
 ../rtl/vai_mux.sv
 ../rtl/vai_serve_rx.sv
 ../rtl/vai_mgr_afu.sv
-../rtl/fifo_bram.sv
 ../rtl/tx_mux.sv
-../rtl/tx_to_fifo.sv
+../rtl/sync_C1Tx_fifo.v
+../rtl/gram_sdp.v
+../rtl/a10_ram_sdp_wysiwyg.v

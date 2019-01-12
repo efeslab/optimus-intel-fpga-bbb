@@ -13,222 +13,319 @@ module tx_mux #(parameter N_SUBAFUS=16)
     output wire c1_almFull [N_SUBAFUS-1:0]
 );
 
-    /* reset fanout */
+    localparam LOGN_SUBAFUS = $clog2(N_SUBAFUS);
+
+    /* --------- reset fan-out ----------- */
     logic reset_q;
-    logic reset_qq[N_SUBAFUS-1:0];
+    logic reset_qq [N_SUBAFUS-1:0];
     always_ff @(posedge clk)
     begin
         reset_q <= reset;
         for (int i=0; i<N_SUBAFUS; i++)
+        begin
             reset_qq[i] <= reset_q;
+        end
     end
 
-    localparam LOG_N_SUBAFUS = $clog2(N_SUBAFUS);
-
-    /* tx_to_fifo */
-
-    logic fifo_c0_almostFull [N_SUBAFUS-1:0];
-    logic fifo_c1_almostFull [N_SUBAFUS-1:0];
-    logic fifo_c2_almostFull [N_SUBAFUS-1:0];
-
-    logic fifo_c0_notEmpty [N_SUBAFUS-1:0];
-    logic fifo_c1_notEmpty [N_SUBAFUS-1:0];
-    logic fifo_c2_notEmpty [N_SUBAFUS-1:0];
-
-    t_if_ccip_c0_Tx fifo_c0_first [N_SUBAFUS-1:0];
-    t_if_ccip_c1_Tx fifo_c1_first [N_SUBAFUS-1:0];
-    t_if_ccip_c2_Tx fifo_c2_first [N_SUBAFUS-1:0];
-
-    logic fifo_c0_deq_en [N_SUBAFUS-1:0];
-    logic fifo_c1_deq_en [N_SUBAFUS-1:0];
-    logic fifo_c2_deq_en [N_SUBAFUS-1:0];
+    /* --------------- fifo ---------------- */
+    /* c0 fifo */
+    t_if_ccip_c0_Tx     fifo_c0_din         [N_SUBAFUS-1:0];
+    t_if_ccip_c0_Tx     fifo_c0_dout        [N_SUBAFUS-1:0];
+    logic               fifo_c0_wen         [N_SUBAFUS-1:0];
+    logic               fifo_c0_rdack       [N_SUBAFUS-1:0];
+    logic               fifo_c0_dout_v      [N_SUBAFUS-1:0];
+    logic               fifo_c0_empty       [N_SUBAFUS-1:0];
+    logic               fifo_c0_full        [N_SUBAFUS-1:0];
+    logic               fifo_c0_almFull     [N_SUBAFUS-1:0];
 
     generate
         genvar i;
         for (i=0; i<N_SUBAFUS; i++)
-        begin: gen_tx_to_fifo
-            tx_to_fifo #(
-                .N_ENTRIES(32)
+        begin: GEN_FIFO_C0
+            sync_C1Tx_fifo #(
+                .DATA_WIDTH($bits(t_if_ccip_c0_Tx)),
+                .CTL_WIDTH(0),
+                .DEPTH_BASE2($clog2(32)),
+                .GRAM_MODE(3),
+                .FULL_THRESH(32-8)
             )
-            inst_tx_to_fifo(
-                .clk(clk),
-                .reset(reset_qq[i]),
-                .afu_TxPort(in[i]),
-                .out_fifo_c0_almostFull(fifo_c0_almostFull[i]),
-                .out_fifo_c0_notEmpty(fifo_c0_notEmpty[i]),
-                .out_fifo_c0_first(fifo_c0_first[i]),
-                .in_fifo_c0_deq_en(fifo_c0_deq_en[i]),
-                .out_fifo_c1_almostFull(fifo_c1_almostFull[i]),
-                .out_fifo_c1_notEmpty(fifo_c1_notEmpty[i]),
-                .out_fifo_c1_first(fifo_c1_first[i]),
-                .in_fifo_c1_deq_en(fifo_c1_deq_en[i]),
-                .out_fifo_c2_almostFull(fifo_c2_almostFull[i]),
-                .out_fifo_c2_notEmpty(fifo_c2_notEmpty[i]),
-                .out_fifo_c2_first(fifo_c2_first[i]),
-                .in_fifo_c2_deq_en(fifo_c2_deq_en[i])
+            inst_fifo_c0(
+                .Resetb(~reset_qq[i]),
+                .Clk(clk),
+                .fifo_din(fifo_c0_din[i]),
+                .fifo_ctlin(),
+                .fifo_wen(fifo_c0_wen[i]),
+                .fifo_rdack(fifo_c0_rdack[i]),
+                .T2_fifo_dout(fifo_c0_dout[i]),
+                .T0_fifo_ctlout(),
+                .T0_fifo_dout_v(fifo_c0_dout_v[i]),
+                .T0_fifo_empty(fifo_c0_empty[i]),
+                .T0_fifo_full(fifo_c0_full[i]),
+                .T0_fifo_count(),
+                .T0_fifo_almFull(fifo_c0_almFull[i]),
+                .T0_fifo_underflow(),
+                .T0_fifo_overflow()
                 );
         end
     endgenerate
 
+    /* c1 fifo */
+    t_if_ccip_c1_Tx     fifo_c1_din         [N_SUBAFUS-1:0];
+    t_if_ccip_c1_Tx     fifo_c1_dout        [N_SUBAFUS-1:0];
+    logic               fifo_c1_wen         [N_SUBAFUS-1:0];
+    logic               fifo_c1_rdack       [N_SUBAFUS-1:0];
+    logic               fifo_c1_dout_v      [N_SUBAFUS-1:0];
+    logic               fifo_c1_empty       [N_SUBAFUS-1:0];
+    logic               fifo_c1_full        [N_SUBAFUS-1:0];
+    logic               fifo_c1_almFull     [N_SUBAFUS-1:0];
 
-    /* T1: maintain index */
+    generate
+        genvar i;
+        for (i=0; i<N_SUBAFUS; i++)
+        begin: GEN_FIFO_C1
+            sync_C1Tx_fifo #(
+                .DATA_WIDTH($bits(t_if_ccip_c1_Tx)),
+                .CTL_WIDTH(0),
+                .DEPTH_BASE2($clog2(32)),
+                .GRAM_MODE(3),
+                .FULL_THRESH(32-8)
+            )
+            inst_fifo_c1(
+                .Resetb(~reset_qq[i]),
+                .Clk(clk),
+                .fifo_din(fifo_c1_din[i]),
+                .fifo_ctlin(),
+                .fifo_wen(fifo_c1_wen[i]),
+                .fifo_rdack(fifo_c1_rdack[i]),
+                .T2_fifo_dout(fifo_c1_dout[i]),
+                .T0_fifo_ctlout(),
+                .T0_fifo_dout_v(fifo_c1_dout_v[i]),
+                .T0_fifo_empty(fifo_c1_empty[i]),
+                .T0_fifo_full(fifo_c1_full[i]),
+                .T0_fifo_count(),
+                .T0_fifo_almFull(fifo_c1_almFull[i]),
+                .T0_fifo_underflow(),
+                .T0_fifo_overflow()
+                );
+        end
+    endgenerate
 
-    logic [LOG_N_SUBAFUS-1:0] T1_curr;
-    logic T1_c0_valid;
-    logic T1_c1_valid;
-    logic T1_c2_valid;
+    /* c2 fifo */
+    t_if_ccip_c2_Tx     fifo_c2_din         [N_SUBAFUS-1:0];
+    t_if_ccip_c2_Tx     fifo_c2_dout        [N_SUBAFUS-1:0];
+    logic               fifo_c2_wen         [N_SUBAFUS-1:0];
+    logic               fifo_c2_rdack       [N_SUBAFUS-1:0];
+    logic               fifo_c2_dout_v      [N_SUBAFUS-1:0];
+    logic               fifo_c2_empty       [N_SUBAFUS-1:0];
+    logic               fifo_c2_full        [N_SUBAFUS-1:0];
+    logic               fifo_c2_almFull     [N_SUBAFUS-1:0];
 
-    logic T1_c0_almFull [N_SUBAFUS-1:0];
-    logic T1_c1_almFull [N_SUBAFUS-1:0];
-    
+    generate
+        genvar i;
+        for (i=0; i<N_SUBAFUS; i++)
+        begin: GEN_FIFO_C2
+            sync_C1Tx_fifo #(
+                .DATA_WIDTH($bits(t_if_ccip_c2_Tx)),
+                .CTL_WIDTH(0),
+                .DEPTH_BASE2($clog2(32)),
+                .GRAM_MODE(3),
+                .FULL_THRESH(32-8)
+            )
+            inst_fifo_c2(
+                .Resetb(~reset_qq[i]),
+                .Clk(clk),
+                .fifo_din(fifo_c2_din[i]),
+                .fifo_ctlin(),
+                .fifo_wen(fifo_c2_wen[i]),
+                .fifo_rdack(fifo_c2_rdack[i]),
+                .T2_fifo_dout(fifo_c2_dout[i]),
+                .T0_fifo_ctlout(),
+                .T0_fifo_dout_v(fifo_c2_dout_v[i]),
+                .T0_fifo_empty(fifo_c2_empty[i]),
+                .T0_fifo_full(fifo_c2_full[i]),
+                .T0_fifo_count(),
+                .T0_fifo_almFull(fifo_c2_almFull[i]),
+                .T0_fifo_underflow(),
+                .T0_fifo_overflow()
+                );
+        end
+    endgenerate
+
+    /* ------------- enqueue ---------------- */
+    generate
+        genvar i;
+        for (i=0; i<N_SUBAFUS; i++)
+        begin: GEN_ENQ
+            /* enq: T0 */
+            t_if_ccip_Tx T0_Tx;
+            always_ff @(posedge clk)
+            begin
+                if (reset_qq[i])
+                begin
+                    T0_Tx <= t_if_ccip_Tx'(0);
+                end
+                else
+                begin
+                    T0_Tx <= in[i];
+                end
+            end
+
+            /* enq: T1 */
+            t_if_ccip_c0_Tx T1_c0;
+            always_ff @(posedge clk)
+            begin
+                if (reset_qq[i])
+                begin
+                    T1_c0 <= 0;
+                end
+                else
+                begin
+                    if (T0_Tx.c0.valid & ~fifo_c0_full[i])
+                    begin
+                        fifo_c0_din[i] <= T0_Tx.c0;
+                        fifo_c0_wen[i] <= 1;
+                    end
+                    else
+                    begin
+                        fifo_c0_wen[i] <= 0;
+                    end
+
+                    if (T0_Tx.c1.valid & ~fifo_c1_full[i])
+                    begin
+                        fifo_c1_din[i] <= T0_Tx.c1;
+                        fifo_c1_wen[i] <= 1;
+                    end
+                    else
+                    begin
+                        fifo_c1_wen[i] <= 0;
+                    end
+
+                    if (T0_Tx.c2.mmioRdValid & ~fifo_c2_full[i])
+                    begin
+                        fifo_c2_din[i] <= T0_Tx.c2;
+                        fifo_c2_wen[i] <= 1;
+                    end
+                    else
+                    begin
+                        fifo_c2_wen[i] <= 0;
+                    end
+                end
+            end
+        end
+    endgenerate
+
+    /* ---------------- dequeue ---------------- */
+    /* deq: T0 */
+    logic [LOGN_SUBAFUS-1:0] T0_curr;
+    logic [LOGN_SUBAFUS-1:0] T0_curr_prefetch;
+    logic T0_subafu_hit [N_SUBAFUS-1:0];
+
+    generate
+        genvar i;
+        for (i=0; i<N_SUBAFUS; i++)
+        begin
+            assign T0_subafu_hit[i] = (T0_curr == i);
+        end
+    endgenerate
+
+    assign T0_curr_prefetch = (T0_curr == (N_SUBAFUS-1)) ? 0 : (T0_curr+1);
+        
     always_ff @(posedge clk)
     begin
         if (reset_q)
         begin
-            T1_curr <= 0;
-            T1_c0_valid <= 0;
-            T1_c1_valid <= 0;
-            T1_c2_valid <= 0;
-
-            for (int i=0; i<N_SUBAFUS; i++)
-            begin
-                T1_c0_almFull[i] <= 0;
-                T1_c1_almFull[i] <= 0;
-            end
+            T0_curr <= 0;
         end
         else
         begin
-            if (T1_curr == N_SUBAFUS-1)
-            begin
-                T1_curr <= 0;
-            end
-            else
-            begin
-                T1_curr <= T1_curr + 1;
-            end
-
-            T1_c0_valid <= fifo_c0_notEmpty[T1_curr];
-            T1_c1_valid <= fifo_c1_notEmpty[T1_curr];
-            T1_c2_valid <= fifo_c2_notEmpty[T1_curr];
-
-            T1_c0_almFull <= fifo_c0_almostFull;
-            T1_c1_almFull <= fifo_c1_almostFull;
+            /* make it parallel */
+            T0_curr <= T0_curr_prefetch;
 
             for (int i=0; i<N_SUBAFUS; i++)
             begin
-                if (i == T1_curr)
-                begin
-                    fifo_c0_deq_en[i] <= fifo_c0_notEmpty[i];
-                    fifo_c1_deq_en[i] <= fifo_c1_notEmpty[i];
-                    fifo_c2_deq_en[i] <= fifo_c2_notEmpty[i];
-                end
+                /* We only send ack if the id of subafu match T0_curr,
+                 * plus the output of subafu is valid.
+                 * The following code can be parallized better. */
+                if (fifo_c0_dout_v[i])
+                    fifo_c0_rdack[i] <= T0_subafu_hit[i];
                 else
-                begin
-                    fifo_c0_deq_en[i] <= 0;
-                    fifo_c1_deq_en[i] <= 0;
-                    fifo_c2_deq_en[i] <= 0;
-                end
+                    fifo_c0_rdack[i] <= 0;
+
+                if (fifo_c1_dout_v[i])
+                    fifo_c1_rdack[i] <= T0_subafu_hit[i];
+                else
+                    fifo_c1_rdack[i] <= 0;
+
+                if (fifo_c2_dout_v[i])
+                    fifo_c2_rdack[i] <= T0_subafu_hit[i];
+                else
+                    fifo_c2_rdack[i] <= 0;
             end
         end
     end
 
+    /* deq: T1 */
+    logic [LOGN_SUBAFUS-1:0] T1_curr;
+    logic T1_c0_dout_v;
+    logic T1_c1_dout_v;
+    logic T1_c2_dout_v;
 
-    /* T2: read out the fifo */
+    always_ff @(posedge clk)
+    begin
+        T1_curr <= T0_curr;
+        T1_c0_dout_v <= fifo_c0_dout_v[T0_curr];
+        T1_c1_dout_v <= fifo_c1_dout_v[T0_curr];
+        T1_c2_dout_v <= fifo_c2_dout_v[T0_curr];
+    end
 
-    logic [LOG_N_SUBAFUS-1:0] T2_curr;
-
-    logic T2_c0_valid;
-    logic T2_c1_valid;
-    logic T2_c2_valid;
-
-    logic T2_c0_almFull [N_SUBAFUS-1:0];
-    logic T2_c1_almFull [N_SUBAFUS-1:0];
-
-    t_if_ccip_c0_Tx T2_c0;
-    t_if_ccip_c1_Tx T2_c1;
-    t_if_ccip_c2_Tx T2_c2;
+    /* deq: T2 */
+    logic [LOGN_SUBAFUS-1:0] T2_curr;
+    logic T2_c0_dout_v;
+    logic T2_c1_dout_v;
+    logic T2_c2_dout_v;
 
     always_ff @(posedge clk)
     begin
         T2_curr <= T1_curr;
-
-        T2_c0_valid <= T1_c0_valid;
-        T2_c1_valid <= T1_c1_valid;
-        T2_c2_valid <= T1_c2_valid;
-
-        T2_c0_almFull <= T1_c0_almFull;
-        T2_c1_almFull <= T1_c1_almFull;
-
-        if (T1_c0_valid)
-        begin
-            T2_c0 <= fifo_c0_first[T2_curr];
-        end
-
-        if (T1_c1_valid)
-        begin
-            T2_c1 <= fifo_c1_first[T2_curr];
-        end
-
-        if (T1_c2_valid)
-        begin
-            T2_c2 <= fifo_c2_first[T2_curr];
-        end
+        T2_c0_dout_v <= T1_c0_dout_v;
+        T2_c1_dout_v <= T1_c1_dout_v;
+        T2_c2_dout_v <= T1_c2_dout_v;
     end
 
-    /* T3: output */
+    /* deq: T3 */
     t_if_ccip_Tx T3_Tx;
-
-    logic T3_c0_almFull [N_SUBAFUS-1:0];
-    logic T3_c1_almFull [N_SUBAFUS-1:0];
+    logic [LOGN_SUBAFUS-1:0] T3_curr;
 
     always_ff @(posedge clk)
     begin
         if (reset_q)
         begin
-            T3_Tx <= 0;
-
-            for (int i=0; i<N_SUBAFUS; i++)
-            begin
-                T3_c0_almFull[i] <= 0;
-                T3_c1_almFull[i] <= 0;
-            end
+            T3_Tx <= t_if_ccip_Tx'(0);
         end
-        else 
+        else
         begin
-            T3_c0_almFull <= T2_c0_almFull;
-            T3_c1_almFull <= T2_c1_almFull;
+            T3_curr <= T2_curr;
 
-            if (T2_c0_valid)
-            begin
-                T3_Tx.c0 <= T2_c0;
-            end
+            if (T2_c0_dout_v)
+                T3_Tx.c0 <= fifo_c0_dout[T2_curr];
             else
-            begin
-                T3_Tx.c0 <= 0;
-            end
+                T3_Tx.c0 <= t_if_ccip_c0_Tx'(0);
 
-            if (T2_c1_valid)
-            begin
-                T3_Tx.c1 <= T2_c1;
-            end
+            if (T2_c1_dout_v)
+                T3_Tx.c1 <= fifo_c1_dout[T2_curr];
             else
-            begin
-                T3_Tx.c1 <= 0;
-            end
+                T3_Tx.c1 <= t_if_ccip_c1_Tx'(0);
 
-            if (T2_c2_valid)
-            begin
-                T3_Tx.c2 <= T2_c2;
-            end
+            if (T2_c2_dout_v)
+                T3_Tx.c2 <= fifo_c2_dout[T2_curr];
             else
-            begin
-                T3_Tx.c2 <= 0;
-            end
+                T3_Tx.c2 <= t_if_ccip_c2_Tx'(0);
         end
     end
 
+    /* connection */
     assign out = T3_Tx;
-    assign c0_almFull = T3_c0_almFull;
-    assign c1_almFull = T3_c1_almFull;
+    assign c0_almFull = fifo_c0_almFull;
+    assign c1_almFull = fifo_c1_almFull;
 
 endmodule
