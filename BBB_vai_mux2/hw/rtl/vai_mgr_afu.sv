@@ -25,9 +25,14 @@ module vai_mgr_afu # (parameter NUM_SUB_AFUS=8)
 
 
     logic clk;
-    logic reset;
     assign clk = pClk;
-    assign reset = pck_cp2af_softReset;
+
+    /* reset fan-out */
+    logic reset;
+    always_ff @(posedge clk)
+    begin
+        reset <= pck_cp2af_softReset;
+    end
 
     /* T0: connect to ccip */
     t_if_ccip_Rx T0_Rx;

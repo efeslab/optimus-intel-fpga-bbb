@@ -20,12 +20,14 @@ module tx_mux #(parameter N_SUBAFUS=16)
     /* --------- reset fan-out ----------- */
     logic reset_q;
     logic reset_qq [N_SUBAFUS-1:0];
+    logic reset_qq_r [N_SUBAFUS-1:0];
     always_ff @(posedge clk)
     begin
         reset_q <= reset;
         for (int i=0; i<N_SUBAFUS; i++)
         begin
             reset_qq[i] <= reset_q;
+            reset_qq_r[i] <= ~reset_q;
         end
     end
 
@@ -51,7 +53,7 @@ module tx_mux #(parameter N_SUBAFUS=16)
                 .FULL_THRESH(32-8)
             )
             inst_fifo_c0(
-                .Resetb(~reset_qq[i]),
+                .Resetb(reset_qq_r[i]),
                 .Clk(clk),
                 .fifo_din(fifo_c0_din[i]),
                 .fifo_ctlin(),
@@ -91,7 +93,7 @@ module tx_mux #(parameter N_SUBAFUS=16)
                 .FULL_THRESH(32-8)
             )
             inst_fifo_c1(
-                .Resetb(~reset_qq[i]),
+                .Resetb(reset_qq_r[i]),
                 .Clk(clk),
                 .fifo_din(fifo_c1_din[i]),
                 .fifo_ctlin(),
@@ -131,7 +133,7 @@ module tx_mux #(parameter N_SUBAFUS=16)
                 .FULL_THRESH(32-8)
             )
             inst_fifo_c2(
-                .Resetb(~reset_qq[i]),
+                .Resetb(reset_qq_r[i]),
                 .Clk(clk),
                 .fifo_din(fifo_c2_din[i]),
                 .fifo_ctlin(),
@@ -293,35 +295,54 @@ module tx_mux #(parameter N_SUBAFUS=16)
     t_if_ccip_Tx T3_Tx;
     logic [LOGN_SUBAFUS-1:0] T3_curr;
 
+    t_if_ccip_Tx T3_Tx_prefetch;
+
+    always_comb 
+    begin
+        T3_Tx_prefetch.c0 = fifo_c0_dout[T2_curr];
+        T3_Tx_prefetch.c1 = fifo_c1_dout[T2_curr];
+        T3_Tx_prefetch.c2 = fifo_c2_dout[T2_curr];
+    end
+
+    always_ff @(posedge clk)
+    begin
+        T3_curr <= T2_curr;
+
+        if (T2_c0_dout_v)
+            T3_Tx.c0 <= T3_Tx_prefetch.c0;
+        else
+            T3_Tx.c0 <= t_if_ccip_c0_Tx'(0);
+
+        if (T2_c1_dout_v)
+            T3_Tx.c1 <= T3_Tx_prefetch.c1;
+        else
+            T3_Tx.c1 <= t_if_ccip_c1_Tx'(0);
+
+        if (T2_c2_dout_v)
+            T3_Tx.c2 <= T3_Tx_prefetch.c2;
+        else
+            T3_Tx.c2 <= t_if_ccip_c2_Tx'(0);
+    end
+
+    /* dep: T4 */
+    t_if_ccip_Tx T4_Tx;
+
+    /* It seems like that T3 is too far from the output port,
+     * so we add a stage here */
     always_ff @(posedge clk)
     begin
         if (reset_q)
         begin
-            T3_Tx <= t_if_ccip_Tx'(0);
+            T4_Tx <= t_if_ccip_Tx'(0);
         end
         else
         begin
-            T3_curr <= T2_curr;
-
-            if (T2_c0_dout_v)
-                T3_Tx.c0 <= fifo_c0_dout[T2_curr];
-            else
-                T3_Tx.c0 <= t_if_ccip_c0_Tx'(0);
-
-            if (T2_c1_dout_v)
-                T3_Tx.c1 <= fifo_c1_dout[T2_curr];
-            else
-                T3_Tx.c1 <= t_if_ccip_c1_Tx'(0);
-
-            if (T2_c2_dout_v)
-                T3_Tx.c2 <= fifo_c2_dout[T2_curr];
-            else
-                T3_Tx.c2 <= t_if_ccip_c2_Tx'(0);
+            T4_Tx <= T3_Tx;
         end
     end
 
     /* connection */
-    assign out = T3_Tx;
+    assign out = T4_Tx;
     assign c0_almFull = fifo_c0_almFull;
     assign c1_almFull = fifo_c1_almFull;
 
