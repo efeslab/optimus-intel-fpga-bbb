@@ -9,8 +9,11 @@ module tx_mux #(parameter N_SUBAFUS=16)
     input t_if_ccip_Tx in [N_SUBAFUS-1:0],
     output t_if_ccip_Tx out,
 
-    output wire c0_almFull [N_SUBAFUS-1:0],
-    output wire c1_almFull [N_SUBAFUS-1:0]
+    input wire in_c0_almFull,
+    input wire in_c1_almFull,
+
+    output wire out_c0_almFull [N_SUBAFUS-1:0],
+    output wire out_c1_almFull [N_SUBAFUS-1:0]
 );
 
     genvar i;
@@ -28,6 +31,26 @@ module tx_mux #(parameter N_SUBAFUS=16)
         begin
             reset_qq[i] <= reset_q;
             reset_qq_r[i] <= ~reset_q;
+        end
+    end
+
+    /* --------- input almFull fan-out ---------- */
+    logic in_c0_almFull_q;
+    logic in_c0_almFull_qq [N_SUBAFUS-1:0];
+    logic in_c0_almFull_qq_r [N_SUBAFUS-1:0];
+    logic in_c1_almFull_q;
+    logic in_c1_almFull_qq [N_SUBAFUS-1:0];
+    logic in_c1_almFull_qq_r [N_SUBAFUS-1:0];
+    always_ff @(posedge clk)
+    begin
+        in_c0_almFull_q <= in_c0_almFull;
+        in_c1_almFull_q <= in_c1_almFull;
+        for (int i=0; i<N_SUBAFUS; i++)
+        begin
+            in_c0_almFull_qq[i] <= in_c0_almFull_q;
+            in_c1_almFull_qq[i] <= in_c1_almFull_q;
+            in_c0_almFull_qq_r[i] <= ~in_c0_almFull_q;
+            in_c1_almFull_qq_r[i] <= ~in_c1_almFull_q;
         end
     end
 
@@ -239,12 +262,12 @@ module tx_mux #(parameter N_SUBAFUS=16)
             /* We only send ack if the id of subafu match T0_curr,
              * plus the output of subafu is valid.
              * The following code can be parallized better. */
-            if (fifo_c0_dout_v[i])
+            if (fifo_c0_dout_v[i] & in_c0_almFull_qq_r[i])
                 fifo_c0_rdack[i] <= T0_subafu_hit[i];
             else
                 fifo_c0_rdack[i] <= 0;
 
-            if (fifo_c1_dout_v[i])
+            if (fifo_c1_dout_v[i] & in_c1_almFull_qq_r[i])
                 fifo_c1_rdack[i] <= T0_subafu_hit[i];
             else
                 fifo_c1_rdack[i] <= 0;
@@ -336,7 +359,7 @@ module tx_mux #(parameter N_SUBAFUS=16)
 
     /* connection */
     assign out = T4_Tx;
-    assign c0_almFull = fifo_c0_almFull;
-    assign c1_almFull = fifo_c1_almFull;
+    assign out_c0_almFull = fifo_c0_almFull;
+    assign out_c1_almFull = fifo_c1_almFull;
 
 endmodule

@@ -32,6 +32,16 @@ module vai_mux # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
         end
     end
 
+    /* Upstream almFull register */
+
+    logic in_c0_almFull;
+    logic in_c1_almFull;
+    always_ff @(posedge pClk)
+    begin
+        in_c0_almFull <= up_RxPort.c0TxAlmFull;
+        in_c1_almFull <= up_RxPort.c1TxAlmFull;
+    end
+
     /* forward Rx Port */
 
     t_if_ccip_Rx pre_afu_RxPort[NUM_SUB_AFUS-1:0];
@@ -99,8 +109,8 @@ module vai_mux # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
     /* we utilize the legacy ccip_mux to send packet */
     assign audit_TxPort[NUM_SUB_AFUS] = mgr_TxPort;
 
-    logic c0_almFull [NUM_SUB_AFUS:0];
-    logic c1_almFull [NUM_SUB_AFUS:0];
+    logic out_c0_almFull [NUM_SUB_AFUS:0];
+    logic out_c1_almFull [NUM_SUB_AFUS:0];
 
     tx_mux #(
         .N_SUBAFUS(NUM_SUB_AFUS+1)
@@ -110,8 +120,10 @@ module vai_mux # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
         .reset(reset),
         .in(audit_TxPort),
         .out(up_TxPort),
-        .c0_almFull(c0_almFull),
-        .c1_almFull(c1_almFull)
+        .in_c0_almFull(in_c0_almFull),
+        .in_c1_almFull(in_c1_almFull),
+        .out_c0_almFull(out_c0_almFull),
+        .out_c1_almFull(out_c1_almFull)
         );
 
 
@@ -122,8 +134,8 @@ module vai_mux # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
             always_comb
             begin
                 afu_RxPort[n] = pre_afu_RxPort[n]; /* c0 & c1 */
-                afu_RxPort[n].c0TxAlmFull = c0_almFull[n];
-                afu_RxPort[n].c1TxAlmFull = c1_almFull[n];
+                afu_RxPort[n].c0TxAlmFull = out_c0_almFull[n];
+                afu_RxPort[n].c1TxAlmFull = out_c1_almFull[n];
             end
         end
     endgenerate
