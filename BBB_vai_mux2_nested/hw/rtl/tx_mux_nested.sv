@@ -58,8 +58,8 @@ module tx_mux_nested_9
             always_comb
             begin
                 l1down[i] = l2up;
-                l1down_c0_almFull[i] = l2up_c0_almFull;
-                l1down_c1_almFull[i] = l2up_c1_almFull;
+                l2up_c0_almFull = l1down_c0_almFull[i];
+                l2up_c1_almFull = l1down_c1_almFull[i];
             end
 
             tx_mux #(
