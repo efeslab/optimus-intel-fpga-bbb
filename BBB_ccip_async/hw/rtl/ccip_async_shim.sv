@@ -83,6 +83,7 @@ module ccip_async_shim
     */
    (* preserve *) logic               softreset_T1;
    (* preserve *) logic               softreset_T2;
+   (* preserve *) logic               afu_softreset_T1;
 
    always @(posedge afu_clk) begin
       softreset_T1 <= bb_softreset;
