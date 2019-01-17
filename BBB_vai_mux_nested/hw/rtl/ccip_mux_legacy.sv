@@ -112,6 +112,11 @@ begin
     end
 end
 
+always @(posedge pClk)
+begin
+    up_TxPort <= up_TxPort_T3;
+end
+
 t_ccip_c0_ReqMmioHdr   mmio_req_hdr;
 always @(*)
 begin
@@ -123,7 +128,7 @@ begin
     end
     // Tx : AFU to Link
     //------------------------------------------------------------
-    up_TxPort = up_TxPort_T3;
+    //up_TxPort = up_TxPort_T3;
     // Channel 0
     // -- same clk --
     arb_C0Tx_Valid = C0Tx_outValid;
