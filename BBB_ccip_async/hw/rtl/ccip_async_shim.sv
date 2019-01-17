@@ -87,7 +87,8 @@ module ccip_async_shim
    always @(posedge afu_clk) begin
       softreset_T1 <= bb_softreset;
       softreset_T2 <= softreset_T1;
-      afu_softreset <= softreset_T2;
+      afu_softreset_T1 <= softreset_T2;
+      afu_softreset <= afu_softreset_T1;
    end
 
    t_if_ccip_Rx bb_rx_q;
@@ -130,7 +131,7 @@ module ccip_async_shim
       .rdreq   ( c0tx_rdreq ),
       .wrclk   ( afu_clk ),
       .rdclk   ( bb_clk ),
-      .aclr    ( bb_softreset ),
+      .aclr    ( softreset_T1 ),
       .q       ( c0tx_dout ),
       .rdusedw ( ),
       .wrusedw ( c0tx_cnt ),
@@ -150,7 +151,7 @@ module ccip_async_shim
    c0req_credit_counter
      (
       .clk   ( afu_clk ),
-      .reset ( afu_softreset ),
+      .reset ( afu_softreset_T1 ),
       .c0Tx  ( afu_tx_q.c0 ),
       .c0Rx  ( afu_rx_q.c0 ),
       .cnt   ( c0req_cnt )
@@ -237,7 +238,7 @@ module ccip_async_shim
       .rdreq   ( c1tx_rdreq ),
       .wrclk   ( afu_clk ),
       .rdclk   ( bb_clk ),
-      .aclr    ( bb_softreset ),
+      .aclr    ( softreset_T1 ),
       .q       ( c1tx_dout ),
       .rdusedw ( ),
       .wrusedw ( c1tx_cnt ),
@@ -257,7 +258,7 @@ module ccip_async_shim
    c1req_credit_counter
      (
       .clk   ( afu_clk ),
-      .reset ( afu_softreset ),
+      .reset ( afu_softreset_T1 ),
       .c1Tx  ( afu_tx_q.c1 ),
       .c1Rx  ( afu_rx_q.c1 ),
       .cnt   ( c1req_cnt )
@@ -339,7 +340,7 @@ module ccip_async_shim
       .rdreq   ( c2tx_rdreq ),
       .wrclk   ( afu_clk ),
       .rdclk   ( bb_clk ),
-      .aclr    ( bb_softreset ),
+      .aclr    ( softreset_T1 ),
       .q       ( c2tx_dout ),
       .rdusedw (),
       .wrusedw (),
@@ -388,7 +389,7 @@ module ccip_async_shim
       .rdreq   ( c0rx_rdreq ),
       .wrclk   ( bb_clk ),
       .rdclk   ( afu_clk ),
-      .aclr    ( bb_softreset ),
+      .aclr    ( softreset_T1 ),
       .q       ( c0rx_dout ),
       .rdusedw (),
       .wrusedw (),
@@ -437,7 +438,7 @@ module ccip_async_shim
       .rdreq   ( c1rx_rdreq ),
       .wrclk   ( bb_clk ),
       .rdclk   ( afu_clk ),
-      .aclr    ( bb_softreset ),
+      .aclr    ( softreset_T1 ),
       .q       ( c1rx_dout ),
       .rdusedw (),
       .wrusedw (),
@@ -476,7 +477,7 @@ module ccip_async_shim
     *   4 - C1Rx Write error
     */
    always @(posedge afu_clk) begin
-      if (bb_softreset) begin
+      if (softreset_T1) begin
          async_shim_error <= 5'b0;
       end
       else begin
@@ -527,7 +528,7 @@ module ccip_async_shim
 
          // afu_if counts
          always @(posedge afu_clk) begin
-            if (afu_softreset) begin
+            if (afu_softreset_T1) begin
                afu_c0tx_cnt <= 0;
                afu_c1tx_cnt <= 0;
                afu_c2tx_cnt <= 0;
@@ -550,7 +551,7 @@ module ccip_async_shim
 
          // bb_if counts
          always @(posedge bb_clk) begin
-            if (bb_softreset) begin
+            if (softreset_T1) begin
                bb_c0tx_cnt <= 0;
                bb_c1tx_cnt <= 0;
                bb_c2tx_cnt <= 0;

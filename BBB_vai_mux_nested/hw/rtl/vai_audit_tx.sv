@@ -18,6 +18,18 @@ module vai_audit_tx #(parameter NUM_SUB_AFUS=8)
     localparam LNUM_SUB_AFUS = $clog2(NUM_SUB_AFUS);
     localparam VMID_WIDTH = LNUM_SUB_AFUS;
 
+    /* reset fanout */
+    logic reset_q;
+    logic reset_qq [NUM_SUB_AFUS-1:0];
+    always_ff @(posedge clk)
+    begin
+        reset_q <= reset;
+        for (int i=0; i<NUM_SUB_AFUS; i++)
+        begin
+            reset_qq[i] <= reset_q;
+        end
+    end
+
     generate
         genvar n;
         for (n=0; n<NUM_SUB_AFUS; n++)
@@ -37,7 +49,7 @@ module vai_audit_tx #(parameter NUM_SUB_AFUS=8)
 
             always_ff @(posedge clk)
             begin
-                if (reset)
+                if (reset_qq[n])
                 begin
                     T1_c0 <= t_if_ccip_c0_Tx'(0);
                     T1_c1 <= t_if_ccip_c1_Tx'(0);
@@ -62,7 +74,7 @@ module vai_audit_tx #(parameter NUM_SUB_AFUS=8)
 
             always_ff @(posedge clk)
             begin
-                if (reset)
+                if (reset_qq[n])
                 begin
                     T2_c0 <= t_if_ccip_c0_Tx'(0);
                     T2_c1 <= t_if_ccip_c1_Tx'(0);

@@ -19,6 +19,13 @@ module vai_mux #(NUM_SUB_AFUS=15)
 
 );
 
+    /* fanout SoftReset */
+    logic reset;
+    always_ff @(posedge pClk)
+    begin
+        reset <= SoftReset;
+    end
+
     /* forward Rx Port */
 
     t_if_ccip_Rx pre_afu_RxPort[NUM_SUB_AFUS-1:0];
@@ -30,7 +37,7 @@ module vai_mux #(NUM_SUB_AFUS=15)
     )
     inst_vai_serve_rx(
         .clk(pClk),
-        .reset(SoftReset),
+        .reset(reset),
         .up_RxPort(up_RxPort),
         .afu_RxPort(pre_afu_RxPort),
         .mgr_RxPort(mgr_RxPort)
@@ -48,7 +55,7 @@ module vai_mux #(NUM_SUB_AFUS=15)
         .pClkDiv4(),
         .uClk_usr(),
         .uClk_usrDiv2(),
-        .pck_cp2af_softReset(SoftReset),
+        .pck_cp2af_softReset(reset),
         .pck_cp2af_pwrState(up_PwrState),
         .pck_cp2af_error(up_Error),
         .pck_cp2af_sRx(mgr_RxPort),
@@ -79,7 +86,7 @@ module vai_mux #(NUM_SUB_AFUS=15)
     )
     inst_vai_audit_tx(
         .clk(pClk),
-        .reset(SoftReset),
+        .reset(reset),
         .up_TxPort(audit_TxPort[NUM_SUB_AFUS-1:0]),
         .afu_TxPort(afu_TxPort),
         .offset_array(offset_array)
@@ -96,7 +103,7 @@ module vai_mux #(NUM_SUB_AFUS=15)
             nested_mux_16 inst_ccip_mux_nested(
                 .pClk(pClk),
                 .pClkDiv2(pClkDiv2),
-                .SoftReset(SoftReset),
+                .SoftReset(reset),
                 .up_Error(up_Error),
                 .up_PwrState(up_PwrState),
                 .up_RxPort(up_RxPort), /* we only use this to count packets */
@@ -113,7 +120,7 @@ module vai_mux #(NUM_SUB_AFUS=15)
             nested_mux_12 inst_ccip_mux_nested(
                 .pClk(pClk),
                 .pClkDiv2(pClkDiv2),
-                .SoftReset(SoftReset),
+                .SoftReset(reset),
                 .up_Error(up_Error),
                 .up_PwrState(up_PwrState),
                 .up_RxPort(up_RxPort), /* we only use this to count packets */
@@ -130,7 +137,7 @@ module vai_mux #(NUM_SUB_AFUS=15)
             nested_mux_9 inst_ccip_mux_nested(
                 .pClk(pClk),
                 .pClkDiv2(pClkDiv2),
-                .SoftReset(SoftReset),
+                .SoftReset(reset),
                 .up_Error(up_Error),
                 .up_PwrState(up_PwrState),
                 .up_RxPort(up_RxPort), /* we only use this to count packets */
@@ -147,7 +154,7 @@ module vai_mux #(NUM_SUB_AFUS=15)
             nested_mux_6 inst_ccip_mux_nested(
                 .pClk(pClk),
                 .pClkDiv2(pClkDiv2),
-                .SoftReset(SoftReset),
+                .SoftReset(reset),
                 .up_Error(up_Error),
                 .up_PwrState(up_PwrState),
                 .up_RxPort(up_RxPort), /* we only use this to count packets */
@@ -168,7 +175,7 @@ module vai_mux #(NUM_SUB_AFUS=15)
             inst_ccip_mux(
                 .pClk(pClk),
                 .pClkDiv2(pClkDiv2),
-                .SoftReset(SoftReset),
+                .SoftReset(reset),
                 .up_Error(up_Error),
                 .up_PwrState(up_PwrState),
                 .up_RxPort(up_RxPort), /* we only use this to count packets */

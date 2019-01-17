@@ -15,6 +15,13 @@ module vai_serve_rx # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
     localparam LNUM_SUB_AFUS = $clog2(NUM_SUB_AFUS);
     localparam VMID_WIDTH = LNUM_SUB_AFUS;
 
+    /* reset fanout */
+    logic reset_q;
+    always_ff @(posedge clk)
+    begin
+        reset_q <= reset;
+    end
+
     /* stage T0 */
 
     t_if_ccip_Rx T0_Rx;
@@ -30,7 +37,7 @@ module vai_serve_rx # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
 
     always_ff @(posedge clk)
     begin
-        if (reset)
+        if (reset_q)
         begin
             T1_c0 <= t_if_ccip_c0_Rx'(0);
             T1_c1 <= t_if_ccip_c1_Rx'(0);
@@ -67,7 +74,7 @@ module vai_serve_rx # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
 
     always_ff @(posedge clk)
     begin
-        if (reset)
+        if (reset_q)
         begin
             T2_c0 <= t_if_ccip_c0_Rx'(0);
             T2_c1 <= t_if_ccip_c1_Rx'(0);
@@ -147,7 +154,7 @@ module vai_serve_rx # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
 
     always_ff @(posedge clk)
     begin
-        if (reset)
+        if (reset_q)
         begin
             T3_c0 <= t_if_ccip_c0_Rx'(0);
             T3_c1 <= t_if_ccip_c1_Rx'(0);
@@ -255,34 +262,34 @@ module vai_serve_rx # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
         genvar n;
         for (n=0; n<NUM_SUB_AFUS; n++)
         begin: gen_ccip_rx
-            always_comb
+            always_ff @(posedge clk)
             begin
                 if (n == T3_c0_vmid_to_afu)
                 begin
-                    afu_RxPort[n].c0 = T3_c0_to_afu;
+                    afu_RxPort[n].c0 <= T3_c0_to_afu;
                 end
                 else 
                 begin
-                    afu_RxPort[n].c0 = t_if_ccip_c0_Rx'(0);
+                    afu_RxPort[n].c0 <= t_if_ccip_c0_Rx'(0);
                 end
 
                 if (n == T3_c1_vmid_to_afu)
                 begin
-                    afu_RxPort[n].c1 = T3_c1_to_afu;
+                    afu_RxPort[n].c1 <= T3_c1_to_afu;
                 end
                 else
                 begin
-                    afu_RxPort[n].c1 = t_if_ccip_c1_Rx'(0);
+                    afu_RxPort[n].c1 <= t_if_ccip_c1_Rx'(0);
                 end
             end
         end
     endgenerate
 
     /* output the mgr port */
-    always_comb
+    always_ff @(posedge clk)
     begin
-        mgr_RxPort.c0 = T3_mgr_c0;
-        mgr_RxPort.c1 = t_if_ccip_c1_Rx'(0);
+        mgr_RxPort.c0 <= T3_mgr_c0;
+        mgr_RxPort.c1 <= t_if_ccip_c1_Rx'(0);
     end
 
 endmodule
