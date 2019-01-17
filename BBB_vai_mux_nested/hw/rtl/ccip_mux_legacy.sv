@@ -60,7 +60,7 @@ module ccip_mux_legacy # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
     /* upstream ports */
     input   wire                    SoftReset,                          // upstream reset
     input   wire                    up_Error,
-    input   wire [1:0]              up_PwrState,
+    input   wire                    up_PwrState,
     input   t_if_ccip_Rx            up_RxPort,                          // upstream Rx response port
     output  t_if_ccip_Tx            up_TxPort,                          // upstream Tx request port
     /* downstream ports */
@@ -100,6 +100,18 @@ logic [LNUM_SUB_AFUS-1:0]             rx_C0Id, rx_C1Id, rx_CfgId;
 (* `NO_RETIMING *) t_if_ccip_Tx  up_TxPort_T3;
 t_if_ccip_c2_Tx pckd2_mmioTx;
 
+// Fan out reset
+logic reset = 1'b1;
+logic [NUM_SUB_AFUS-1 : 0] reset_afu = {NUM_SUB_AFUS{1'b1}};
+always @(posedge pClk)
+begin
+    reset <= SoftReset;
+    for (int i=0; i<NUM_SUB_AFUS;i++)
+    begin
+        reset_afu[i] <= reset;
+    end
+end
+
 t_ccip_c0_ReqMmioHdr   mmio_req_hdr;
 always @(*)
 begin
@@ -107,7 +119,7 @@ begin
     begin
         afu_PwrState_Tn[i] = up_PwrState;
         afu_Error_Tn[i]    = up_Error;
-        afu_SoftReset[i] = SoftReset;
+        afu_SoftReset[i]   = reset_afu[i];
     end
     // Tx : AFU to Link
     //------------------------------------------------------------
@@ -151,11 +163,13 @@ begin
         fe_RxPort_c[i].c1TxAlmFull     = up_RxPort.c1TxAlmFull;
     end
 
+    rx_CfgId    = mmio_req_hdr.address[CCIP_MMIOADDR_WIDTH-1-:LNUM_SUB_AFUS];
+
     //UMSG packets are broadcasted to all SUB_AFUS; 
     //AFU designer should decide weather the UMSG packet belong to the SUB_AFU
 
     if(up_RxPort.c0.hdr.resp_type==eRSP_UMSG) begin
-        for(int umsg_itr=0; umsg_itr<NUM_SUB_AFUS ;umsg_itr++)
+    for(int umsg_itr=0; umsg_itr<NUM_SUB_AFUS ;umsg_itr++)
         begin
             fe_RxPort_c[umsg_itr].c0.rspValid     = up_RxPort.c0.rspValid;
         end
@@ -205,7 +219,7 @@ begin
     arb_C0Tx_Select_T2 <= arb_C0Tx_Select_T1;
     arb_C1Tx_Select_T2 <= arb_C1Tx_Select_T1;
 
-    if(SoftReset)
+    if(reset)
     begin
         up_TxPort_T3.c0.valid    <= 0;
         up_TxPort_T3.c2.mmioRdValid    <= 0;
@@ -234,7 +248,7 @@ begin: gen_ccip_ports
     ( 
         .pClk             ( pClk),
         .pClkDiv2         ( pClkDiv2),
-        .SystemReset      ( SoftReset),
+        .SystemReset      ( reset),
         .up_RxPort        ( fe_RxPort[n]),     // from Link
         .up_TxPort        ( fe_TxPort[n]),     // to Link
         .up_C0TxValid     ( fe_C0Tx_Valid[n]),     // 1 clk earlier than fe_TxPort
@@ -279,7 +293,7 @@ fair_arbiter #(
 inst_C0TxArb
 (
     .clk        (pClk),
-    .reset    (SoftReset),
+    .reset      (reset),
     .in_valid   (fe_C0Tx_Valid),
     .hold_priority('0),
     .out_select (arb_C0Tx_Select),
@@ -294,7 +308,7 @@ fair_arbiter #(
 inst_C1TxArb
 (
     .clk        (pClk),
-    .reset    (SoftReset),
+    .reset      (reset),
     .in_valid   (fe_C1Tx_Valid),
     .hold_priority(fe_C1Tx_BlockMode),
     .out_select (arb_C1Tx_Select),
@@ -309,7 +323,7 @@ fair_arbiter #(
 scfifo_CfgTxArb
 (
     .clk        (pClk),
-    .reset    (SoftReset),
+    .reset      (reset),
     .in_valid   (fe_CfgTx_Valid),
     .hold_priority('0),
     .out_select (arb_CfgTx_Select),
