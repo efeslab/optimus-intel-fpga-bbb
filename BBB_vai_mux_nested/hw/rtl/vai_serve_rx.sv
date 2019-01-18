@@ -245,17 +245,22 @@ module vai_serve_rx # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
     /* T3 to afu */
     t_if_ccip_c0_Rx T3_c0_to_afu;
     t_if_ccip_c1_Rx T3_c1_to_afu;
-    logic [VMID_WIDTH-1:0] T3_c0_vmid_to_afu;
-    logic [VMID_WIDTH-1:0] T3_c1_vmid_to_afu;
+    logic [VMID_WIDTH-1:0] T3_c0_vmid_to_afu[NUM_SUB_AFUS-1:0];
+    logic [VMID_WIDTH-1:0] T3_c1_vmid_to_afu[NUM_SUB_AFUS-1:0];
 
     assign offset_array = vmaddr_offset_array;
 
-    always_comb
+    always_ff @(posedge clk)
     begin
-        T3_c0_to_afu        =   T3_c0;
-        T3_c1_to_afu        =   T3_c1;
-        T3_c0_vmid_to_afu   =   T3_c0_vmid;
-        T3_c1_vmid_to_afu   =   T3_c1_vmid;
+        T3_c0_to_afu        <=   T3_c0;
+        T3_c1_to_afu        <=   T3_c1;
+
+        /* fanout to optimize timing */
+        for (int k=0; k<NUM_SUB_AFUS; k++)
+        begin
+            T3_c0_vmid_to_afu[k]   <=   T3_c0_vmid;
+            T3_c1_vmid_to_afu[k]   <=   T3_c1_vmid;
+        end
     end
 
     generate
@@ -264,7 +269,7 @@ module vai_serve_rx # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
         begin: gen_ccip_rx
             always_ff @(posedge clk)
             begin
-                if (n == T3_c0_vmid_to_afu)
+                if (n == T3_c0_vmid_to_afu[k])
                 begin
                     afu_RxPort[n].c0 <= T3_c0_to_afu;
                 end
@@ -273,7 +278,7 @@ module vai_serve_rx # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
                     afu_RxPort[n].c0 <= t_if_ccip_c0_Rx'(0);
                 end
 
-                if (n == T3_c1_vmid_to_afu)
+                if (n == T3_c1_vmid_to_afu[k])
                 begin
                     afu_RxPort[n].c1 <= T3_c1_to_afu;
                 end

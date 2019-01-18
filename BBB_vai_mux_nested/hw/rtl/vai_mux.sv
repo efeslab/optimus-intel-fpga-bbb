@@ -29,6 +29,7 @@ module vai_mux #(NUM_SUB_AFUS=15)
     /* forward Rx Port */
 
     t_if_ccip_Rx pre_afu_RxPort[NUM_SUB_AFUS-1:0];
+    t_if_ccip_Tx up_TxPort_T0;
     t_if_ccip_Rx mgr_RxPort;
     logic [63:0] offset_array [NUM_SUB_AFUS-1:0];
 
@@ -107,7 +108,7 @@ module vai_mux #(NUM_SUB_AFUS=15)
                 .up_Error(up_Error),
                 .up_PwrState(up_PwrState),
                 .up_RxPort(up_RxPort), /* we only use this to count packets */
-                .up_TxPort(up_TxPort),
+                .up_TxPort(up_TxPort_T0),
                 .afu_SoftReset(afu_SoftReset_ext),
                 .afu_PwrState(afu_PwrState_ext),
                 .afu_Error(afu_Error_ext),
@@ -124,7 +125,7 @@ module vai_mux #(NUM_SUB_AFUS=15)
                 .up_Error(up_Error),
                 .up_PwrState(up_PwrState),
                 .up_RxPort(up_RxPort), /* we only use this to count packets */
-                .up_TxPort(up_TxPort),
+                .up_TxPort(up_TxPort_T0),
                 .afu_SoftReset(afu_SoftReset_ext),
                 .afu_PwrState(afu_PwrState_ext),
                 .afu_Error(afu_Error_ext),
@@ -141,7 +142,7 @@ module vai_mux #(NUM_SUB_AFUS=15)
                 .up_Error(up_Error),
                 .up_PwrState(up_PwrState),
                 .up_RxPort(up_RxPort), /* we only use this to count packets */
-                .up_TxPort(up_TxPort),
+                .up_TxPort(up_TxPort_T0),
                 .afu_SoftReset(afu_SoftReset_ext),
                 .afu_PwrState(afu_PwrState_ext),
                 .afu_Error(afu_Error_ext),
@@ -158,7 +159,7 @@ module vai_mux #(NUM_SUB_AFUS=15)
                 .up_Error(up_Error),
                 .up_PwrState(up_PwrState),
                 .up_RxPort(up_RxPort), /* we only use this to count packets */
-                .up_TxPort(up_TxPort),
+                .up_TxPort(up_TxPort_T0),
                 .afu_SoftReset(afu_SoftReset_ext),
                 .afu_PwrState(afu_PwrState_ext),
                 .afu_Error(afu_Error_ext),
@@ -179,7 +180,7 @@ module vai_mux #(NUM_SUB_AFUS=15)
                 .up_Error(up_Error),
                 .up_PwrState(up_PwrState),
                 .up_RxPort(up_RxPort), /* we only use this to count packets */
-                .up_TxPort(up_TxPort),
+                .up_TxPort(up_TxPort_T0),
                 .afu_SoftReset(afu_SoftReset_ext),
                 .afu_PwrState(afu_PwrState_ext),
                 .afu_Error(afu_Error_ext),
@@ -201,5 +202,10 @@ module vai_mux #(NUM_SUB_AFUS=15)
             end
         end
     endgenerate
+
+    always_ff @(posedge pClk)
+    begin
+        up_TxPort <= up_TxPort_T0;
+    end
 
 endmodule
