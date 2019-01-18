@@ -269,7 +269,7 @@ module vai_serve_rx # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
         begin: gen_ccip_rx
             always_ff @(posedge clk)
             begin
-                if (n == T3_c0_vmid_to_afu[k])
+                if (n == T3_c0_vmid_to_afu[n])
                 begin
                     afu_RxPort[n].c0 <= T3_c0_to_afu;
                 end
@@ -278,7 +278,7 @@ module vai_serve_rx # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
                     afu_RxPort[n].c0 <= t_if_ccip_c0_Rx'(0);
                 end
 
-                if (n == T3_c1_vmid_to_afu[k])
+                if (n == T3_c1_vmid_to_afu[n])
                 begin
                     afu_RxPort[n].c1 <= T3_c1_to_afu;
                 end
