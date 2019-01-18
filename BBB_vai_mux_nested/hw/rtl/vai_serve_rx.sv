@@ -129,27 +129,27 @@ module vai_serve_rx # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
     logic [VMID_WIDTH-1:0] T3_c0_vmid;
     logic [VMID_WIDTH-1:0] T3_c1_vmid;
 
-    t_ccip_c0_RspMemHdr T3_c0_mem_hdr;
-    t_ccip_c0_ReqMmioHdr T3_c0_mmio_hdr;
+    t_ccip_c0_RspMemHdr T3_c0_mem_hdr_prefetch;
+    t_ccip_c0_ReqMmioHdr T3_c0_mmio_hdr_prefetch;
 
     always_comb
     begin
         /* candidate memory response */
-        T3_c0_mem_hdr.resp_type =  T2_c0.hdr.resp_type;
-        T3_c0_mem_hdr.cl_num    =  T2_c0.hdr.cl_num;
-        T3_c0_mem_hdr.rsvd0     =  T2_c0.hdr.rsvd0;
-        T3_c0_mem_hdr.hit_miss  =  T2_c0.hdr.hit_miss;
-        T3_c0_mem_hdr.rsvd1     =  T2_c0.hdr.rsvd1;
-        T3_c0_mem_hdr.vc_used   =  T2_c0.hdr.vc_used;
-        T3_c0_mem_hdr.mdata[15:16-VMID_WIDTH]    =  0;
-        T3_c0_mem_hdr.mdata[15-VMID_WIDTH:0]     =  T2_c0.hdr.mdata[15-VMID_WIDTH:0];
+        T3_c0_mem_hdr_prefetch.resp_type =  T2_c0.hdr.resp_type;
+        T3_c0_mem_hdr_prefetch.cl_num    =  T2_c0.hdr.cl_num;
+        T3_c0_mem_hdr_prefetch.rsvd0     =  T2_c0.hdr.rsvd0;
+        T3_c0_mem_hdr_prefetch.hit_miss  =  T2_c0.hdr.hit_miss;
+        T3_c0_mem_hdr_prefetch.rsvd1     =  T2_c0.hdr.rsvd1;
+        T3_c0_mem_hdr_prefetch.vc_used   =  T2_c0.hdr.vc_used;
+        T3_c0_mem_hdr_prefetch.mdata[15:16-VMID_WIDTH]    =  0;
+        T3_c0_mem_hdr_prefetch.mdata[15-VMID_WIDTH:0]     =  T2_c0.hdr.mdata[15-VMID_WIDTH:0];
 
         /* candidate mmio request */
-        T3_c0_mmio_hdr.address[CCIP_MMIOADDR_WIDTH-1:6]  =   0;
-        T3_c0_mmio_hdr.address[5:0]  =  T2_mmio_req_hdr.address[5:0];
-        T3_c0_mmio_hdr.length   =  T2_mmio_req_hdr.length;
-        T3_c0_mmio_hdr.rsvd     =  T2_mmio_req_hdr.rsvd;
-        T3_c0_mmio_hdr.tid      =  T2_mmio_req_hdr.tid;
+        T3_c0_mmio_hdr_prefetch.address[CCIP_MMIOADDR_WIDTH-1:6]  =   0;
+        T3_c0_mmio_hdr_prefetch.address[5:0]  =  T2_mmio_req_hdr.address[5:0];
+        T3_c0_mmio_hdr_prefetch.length   =  T2_mmio_req_hdr.length;
+        T3_c0_mmio_hdr_prefetch.rsvd     =  T2_mmio_req_hdr.rsvd;
+        T3_c0_mmio_hdr_prefetch.tid      =  T2_mmio_req_hdr.tid;
     end
 
     always_ff @(posedge clk)
@@ -174,7 +174,7 @@ module vai_serve_rx # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
             if (T2_c0_choose_rsp)
             begin
                 T3_c0_vmid          <=  T2_c0_vmid;
-                T3_c0.hdr           <=  T3_c0_mem_hdr;
+                T3_c0.hdr           <=  T3_c0_mem_hdr_prefetch;
                 T3_c0.data          <=  T2_c0.data;
                 T3_c0.rspValid      <=  T2_c0.rspValid;
                 T3_c0.mmioRdValid   <=  0;
@@ -185,7 +185,7 @@ module vai_serve_rx # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
             else if (T2_c0_choose_mmio)
             begin
                 T3_c0_vmid          <=  T2_mmio_vmid;
-                T3_c0.hdr           <=  T3_c0_mmio_hdr;
+                T3_c0.hdr           <=  T3_c0_mmio_hdr_prefetch;
                 T3_c0.data          <=  T2_c0.data;
                 T3_c0.rspValid      <=  0;
                 T3_c0.mmioRdValid   <=  T2_c0.mmioRdValid;
@@ -198,7 +198,7 @@ module vai_serve_rx # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
                 T3_c0_vmid          <=  0;
                 T3_c0               <=  t_if_ccip_c0_Rx'(0);
 
-                T3_mgr_c0.hdr       <=  T3_c0_mmio_hdr;
+                T3_mgr_c0.hdr       <=  T3_c0_mmio_hdr_prefetch;
                 T3_mgr_c0.data      <=  T2_c0.data;
                 T3_mgr_c0.rspValid  <=  0;
                 T3_mgr_c0.mmioRdValid   <=  T2_c0.mmioRdValid;
