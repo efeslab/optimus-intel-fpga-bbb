@@ -245,8 +245,8 @@ module vai_serve_rx # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
     /* T3 to afu */
     t_if_ccip_c0_Rx T3_c0_to_afu;
     t_if_ccip_c1_Rx T3_c1_to_afu;
-    logic [VMID_WIDTH-1:0] T3_c0_vmid_to_afu[NUM_SUB_AFUS-1:0];
-    logic [VMID_WIDTH-1:0] T3_c1_vmid_to_afu[NUM_SUB_AFUS-1:0];
+    logic [VMID_WIDTH-1:0] T3_c0_vmid_to_afu;
+    logic [VMID_WIDTH-1:0] T3_c1_vmid_to_afu;
 
     assign offset_array = vmaddr_offset_array;
 
