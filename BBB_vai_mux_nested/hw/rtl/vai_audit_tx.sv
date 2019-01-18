@@ -21,12 +21,14 @@ module vai_audit_tx #(parameter NUM_SUB_AFUS=8)
     /* reset fanout */
     logic reset_q;
     logic reset_qq [NUM_SUB_AFUS-1:0];
+    logic reset_qqq [NUM_SUB_AFUS-1:0];
     always_ff @(posedge clk)
     begin
         reset_q <= reset;
         for (int i=0; i<NUM_SUB_AFUS; i++)
         begin
             reset_qq[i] <= reset_q;
+            reset_qqq[i] <= reset_qq[i];
         end
     end
 
@@ -49,7 +51,7 @@ module vai_audit_tx #(parameter NUM_SUB_AFUS=8)
 
             always_ff @(posedge clk)
             begin
-                if (reset_qq[n])
+                if (reset_qqq[n])
                 begin
                     T1_c0 <= t_if_ccip_c0_Tx'(0);
                     T1_c1 <= t_if_ccip_c1_Tx'(0);
@@ -74,7 +76,7 @@ module vai_audit_tx #(parameter NUM_SUB_AFUS=8)
 
             always_ff @(posedge clk)
             begin
-                if (reset_qq[n])
+                if (reset_qqq[n])
                 begin
                     T2_c0 <= t_if_ccip_c0_Tx'(0);
                     T2_c1 <= t_if_ccip_c1_Tx'(0);
