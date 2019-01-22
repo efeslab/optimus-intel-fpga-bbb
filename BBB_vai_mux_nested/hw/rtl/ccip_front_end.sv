@@ -305,73 +305,6 @@ localparam L_C0TX_FULL_THRESH = 2**L_C0TX_FIFO_DEPTH - CCIP_TX_ALMOST_FULL_THRES
      scfifo_component.underflow_checking  = "ON",
      scfifo_component.use_eab  = "ON";
       
-    // Request tracker
-    //--------------------------------------------------------------------------------------------------------
-    logic [12:0] num_rd_pend;
-    logic [12:0]  num_wr_pend;
-    logic C0Rx_recvd_q, C1Rx_recvd_q;
-    logic C0Tx_sent_q, C0Tx_sent_qq, C0Tx_sent_qqq;
-    logic C1Tx_sent_q, C1Tx_sent_qq, C1Tx_sent_qqq;
-    logic [L_BLK_SIZE:0] C0Tx_cl_length_qqq;
-
-    // Track outstanding Read  requests
-    logic C0Rx_rd_recvd_q;
-    logic C0Tx_rd_sent_q, C0Tx_rd_sent_qq, C0Tx_rd_sent_qqq;
-    always @(posedge pClk)
-    begin
-        C0Tx_rd_sent_q    <= C0Tx_fifo_rdack;
-        C0Tx_rd_sent_qq   <= C0Tx_rd_sent_q;
-        C0Tx_rd_sent_qqq  <= C0Tx_rd_sent_qq;
-        C0Tx_cl_length_qqq <= up_TxPort.c0.hdr.cl_len + 1'b1;
-
-        C0Rx_rd_recvd_q   <= afu_RxPort_c.c0.rspValid && afu_RxPort_c.c0.hdr.resp_type==eRSP_RDLINE;
-
-        case ({C0Tx_rd_sent_qqq, C0Rx_rd_recvd_q})
-            2'b10: num_rd_pend <= num_rd_pend + C0Tx_cl_length_qqq;
-            2'b11: num_rd_pend <= num_rd_pend + C0Tx_cl_length_qqq - 1'b1;
-            2'b01: num_rd_pend <= num_rd_pend - 1'b1;
-        endcase
-
-        if(SystemReset)
-            num_rd_pend <= 0;
-    end
-
-
-    // Track outstanding Write requests
-    logic [2:0] num_wr_decr, num_wr_incr;
-    logic C1Rx_wr_recvd_q;
-    logic C1Tx_wr_sent_q;
-    logic [L_BLK_SIZE:0] C1Rx_cl_length_q;
-    always @(posedge pClk)
-    begin
-        C1Tx_wr_sent_q    <= C1Tx_fifo_rdack;
-        C1Rx_wr_recvd_q   <= afu_RxPort_c.c1.rspValid;
-        // REsponse header
-        // Format= 0 - unpacked     - from QPI & PCIe
-        // Format= 1 - packed       - from PCIe only
-        // C0Rx Header cl_length is always 1, since it is either 1CL Wr Response or a Read Response which is always unpacked
-        
-        case(afu_RxPort_c.c1.hdr.format)
-            1'b1: C1Rx_cl_length_q <= afu_RxPort_c.c1.hdr.cl_num + 1'b1;
-            1'b0: C1Rx_cl_length_q <= 1'b1;
-        endcase
-
-        num_wr_incr <= C1Tx_wr_sent_q;
- 
-        if(C1Rx_wr_recvd_q)
-            num_wr_decr <= C1Rx_cl_length_q;
-        else 
-            num_wr_decr <= 0;
-
-        num_wr_pend <= num_wr_pend + num_wr_incr - num_wr_decr;
-
-        if(SystemReset)
-        begin
-            num_wr_decr <= 0;
-            num_wr_incr <= 0;
-            num_wr_pend <= 0;
-        end
-    end
 
     // Error Detection Logic
     //--------------------------------------------------------------------------------------------------------
@@ -401,15 +334,6 @@ localparam L_C0TX_FULL_THRESH = 2**L_C0TX_FIFO_DEPTH - CCIP_TX_ALMOST_FULL_THRES
             $display("%m \m ERROR: C2 MMio Resp Fifo overflow detected");
                  //synthesis translate_on
             error_vector [2] <= 1'b1;
-        end
-    
-        // Misc Errors
-        if(num_rd_pend[12]==1'b1 || num_wr_pend[12]==1'b1)    // non-fatal
-        begin
-            //synthesis translate_off
-            $display("%m \m ERROR: Num request pending counter overflow");
-            //synthesis translate_on
-            error_vector [3] <= 1'b1;
         end
     
         if(SystemReset)

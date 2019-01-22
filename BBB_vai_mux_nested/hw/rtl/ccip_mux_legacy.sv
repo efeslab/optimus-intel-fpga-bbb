@@ -157,10 +157,10 @@ begin
     mmio_req_hdr = t_ccip_c0_ReqMmioHdr'(up_RxPort.c0.hdr);
     for(int i=0;i<NUM_SUB_AFUS;i++)
     begin
-        fe_RxPort_c[i].c0.rspValid     = 0;
-        fe_RxPort_c[i].c1.rspValid     = 0;
-        fe_RxPort_c[i].c0.mmioRdValid  = 0;
-        fe_RxPort_c[i].c0.mmioWrValid  = 0;
+        fe_RxPort_c[i].c0.rspValid     = up_RxPort.c0.rspValid;
+        fe_RxPort_c[i].c1.rspValid     = up_RxPort.c1.rspValid;
+        fe_RxPort_c[i].c0.mmioRdValid = up_RxPort.c0.mmioRdValid;
+        fe_RxPort_c[i].c0.mmioWrValid = up_RxPort.c0.mmioWrValid;
         fe_RxPort_c[i].c0.hdr          = up_RxPort.c0.hdr;
         fe_RxPort_c[i].c1.hdr          = up_RxPort.c1.hdr;
         fe_RxPort_c[i].c0.data         = up_RxPort.c0.data;
@@ -170,22 +170,6 @@ begin
 
     rx_CfgId    = mmio_req_hdr.address[CCIP_MMIOADDR_WIDTH-1-:LNUM_SUB_AFUS];
 
-    //UMSG packets are broadcasted to all SUB_AFUS; 
-    //AFU designer should decide weather the UMSG packet belong to the SUB_AFU
-
-    if(up_RxPort.c0.hdr.resp_type==eRSP_UMSG) begin
-    for(int umsg_itr=0; umsg_itr<NUM_SUB_AFUS ;umsg_itr++)
-        begin
-            fe_RxPort_c[umsg_itr].c0.rspValid     = up_RxPort.c0.rspValid;
-        end
-    end
-    else begin
-        fe_RxPort_c[rx_C0Id].c0.rspValid     = up_RxPort.c0.rspValid;
-    end
-    
-        fe_RxPort_c[rx_C1Id].c1.rspValid     = up_RxPort.c1.rspValid;
-        fe_RxPort_c[rx_CfgId].c0.mmioRdValid = up_RxPort.c0.mmioRdValid;
-        fe_RxPort_c[rx_CfgId].c0.mmioWrValid = up_RxPort.c0.mmioWrValid;
 end
 
 always @(posedge pClk)

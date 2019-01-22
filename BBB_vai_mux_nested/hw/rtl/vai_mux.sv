@@ -28,18 +28,19 @@ module vai_mux #(NUM_SUB_AFUS=15)
 
     /* forward Rx Port */
 
+    t_if_ccip_Rx legacy_afu_RxPort[NUM_SUB_AFUS:0];
     t_if_ccip_Rx pre_afu_RxPort[NUM_SUB_AFUS-1:0];
     t_if_ccip_Tx up_TxPort_T0;
     t_if_ccip_Rx mgr_RxPort;
     logic [63:0] offset_array [NUM_SUB_AFUS-1:0];
 
-    vai_serve_rx #(
+    vai_audit_rx #(
         .NUM_SUB_AFUS(NUM_SUB_AFUS)
     )
-    inst_vai_serve_rx(
+    inst_vai_audit_rx(
         .clk(pClk),
         .reset(reset),
-        .up_RxPort(up_RxPort),
+        .up_RxPort(legacy_afu_RxPort),
         .afu_RxPort(pre_afu_RxPort),
         .mgr_RxPort(mgr_RxPort)
         );
@@ -95,8 +96,6 @@ module vai_mux #(NUM_SUB_AFUS=15)
 
     /* we utilize the legacy ccip_mux to send packet */
     assign audit_TxPort[NUM_SUB_AFUS] = mgr_TxPort;
-
-    t_if_ccip_Rx legacy_afu_RxPort[NUM_SUB_AFUS:0];
 
     generate
         if (NUM_SUB_AFUS == 15)

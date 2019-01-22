@@ -11,6 +11,6 @@
 ../rtl/a10_ram_sdp_wysiwyg.v
 ../rtl/vai_audit_tx.sv
 ../rtl/vai_mux.sv
-../rtl/vai_serve_rx.sv
+../rtl/vai_audit_rx.sv
 ../rtl/vai_mgr_afu.sv
 ../rtl/ccip_legacy_mux_nested.sv
