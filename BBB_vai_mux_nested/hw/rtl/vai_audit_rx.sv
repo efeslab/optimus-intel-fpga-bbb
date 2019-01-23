@@ -74,7 +74,6 @@ module vai_audit_rx # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
             logic T2_c0_choose_mmio;
             logic T2_c0_choose_rsp;
 
-            logic [VMID_WIDTH-1:0] T2_offset_ctl_vmid;
 
             always_ff @(posedge clk)
             begin
@@ -91,7 +90,6 @@ module vai_audit_rx # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
                     T2_mmio_vmid <= 0;
                     T2_is_ctl_mmio <= 0;
 
-                    T2_offset_ctl_vmid <= 0;
                     T2_c0_choose_mmio <= 0;
                 end
                 else
@@ -108,11 +106,10 @@ module vai_audit_rx # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
 
                     /* the vmid of mmio is decided by the address, each VM has 0xff bytes,
                      * and 0x0-0xff are owned by the hypervisor */
-                    T2_is_ctl_mmio <= (T1_mmio_req_hdr.address[CCIP_MMIOADDR_WIDTH-1:6] == 0);
-                    T2_mmio_vmid <= (T1_mmio_req_hdr.address[CCIP_MMIOADDR_WIDTH-1:6] - 1);
-                    T2_offset_ctl_vmid <= (T1_mmio_req_hdr.address[7:1] - 6);
+                    T2_is_ctl_mmio <= (T1_mmio_req_hdr.address[CCIP_MMIOADDR_WIDTH-1:10] == 0);
+                    T2_mmio_vmid <= (T1_mmio_req_hdr.address[CCIP_MMIOADDR_WIDTH-1:10] - 1);
 
-                    T2_c0_choose_mmio <= ((T1_is_mmio_read || T1_is_mmio_write) && (T1_mmio_req_hdr.address[CCIP_MMIOADDR_WIDTH-1:6] != 0));
+                    T2_c0_choose_mmio <= ((T1_is_mmio_read || T1_is_mmio_write) && (T1_mmio_req_hdr.address[CCIP_MMIOADDR_WIDTH-1:10] != 0));
                     T2_c0_choose_rsp <= T1_c0.rspValid;
                 end
             end
@@ -145,8 +142,8 @@ module vai_audit_rx # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
                 T3_c0_mem_hdr_prefetch.mdata[15-VMID_WIDTH:0]     =  T2_c0.hdr.mdata[15-VMID_WIDTH:0];
 
                 /* candidate mmio request */
-                T3_c0_mmio_hdr_prefetch.address[CCIP_MMIOADDR_WIDTH-1:6]  =   0;
-                T3_c0_mmio_hdr_prefetch.address[5:0]  =  T2_mmio_req_hdr.address[5:0];
+                T3_c0_mmio_hdr_prefetch.address[CCIP_MMIOADDR_WIDTH-1:10]  =   0;
+                T3_c0_mmio_hdr_prefetch.address[9:0]  =  T2_mmio_req_hdr.address[9:0];
                 T3_c0_mmio_hdr_prefetch.length   =  T2_mmio_req_hdr.length;
                 T3_c0_mmio_hdr_prefetch.rsvd     =  T2_mmio_req_hdr.rsvd;
                 T3_c0_mmio_hdr_prefetch.tid      =  T2_mmio_req_hdr.tid;
