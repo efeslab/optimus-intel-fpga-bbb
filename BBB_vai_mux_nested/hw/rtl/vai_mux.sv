@@ -69,12 +69,14 @@ module vai_mux #(NUM_SUB_AFUS=15)
     logic afu_SoftReset_ext [NUM_SUB_AFUS:0];
     logic [1:0] afu_PwrState_ext [NUM_SUB_AFUS:0];
     logic afu_Error_ext [NUM_SUB_AFUS:0];
+    logic afu_SoftReset_reg [NUM_SUB_AFUS-1:0];
 
     always_ff @(posedge pClk)
     begin
         for (int i=0; i<NUM_SUB_AFUS; i++)
         begin
-            afu_SoftReset[i] <= afu_vai_reset[i] | afu_SoftReset_ext[i];
+            afu_SoftReset[i] <= afu_SoftReset_reg[i];
+            afu_SoftReset_reg[i] <= afu_vai_reset[i] | afu_SoftReset_ext[i];
             afu_PwrState[i] <= afu_PwrState_ext[i];
             afu_Error[i] <= afu_Error_ext[i];
         end
