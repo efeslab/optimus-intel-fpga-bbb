@@ -27,13 +27,13 @@ struct debug_csr {
 };
 
 // return value: 0 means ok, non-zero means something is wrong
-int get_debug_csr(struct vai_afu_conn *conn, struct debug_csr *dbgcsr) {
-    return (vai_afu_mmio_read(conn, MMIO_CSR_MEM_READ_IDX, &dbgcsr->mem_read_idx) ||
-            vai_afu_mmio_read(conn, MMIO_CSR_WRITE_REQ_CNT, &dbgcsr->write_req_cnt) ||
-            vai_afu_mmio_read(conn, MMIO_CSR_WRITE_RESP_CNT, &dbgcsr->write_resp_cnt) ||
-            vai_afu_mmio_read(conn, MMIO_CSR_WRITE_FULL_CNT, &dbgcsr->write_full_cnt) ||
-            vai_afu_mmio_read(conn, MMIO_CSR_STATE, &dbgcsr->state) ||
-            vai_afu_mmio_read(conn, MMIO_CSR_CLK_CNT, &dbgcsr->clk_cnt));
+int get_debug_csr(fpga_handle *accel_handle, struct debug_csr *dbgcsr) {
+    return (fpgaReadMMIO64(accel_handle, 0, MMIO_CSR_MEM_READ_IDX, &dbgcsr->mem_read_idx) ||
+            fpgaReadMMIO64(accel_handle, 0, MMIO_CSR_WRITE_REQ_CNT, &dbgcsr->write_req_cnt) ||
+            fpgaReadMMIO64(accel_handle, 0, MMIO_CSR_WRITE_RESP_CNT, &dbgcsr->write_resp_cnt) ||
+            fpgaReadMMIO64(accel_handle, 0, MMIO_CSR_WRITE_FULL_CNT, &dbgcsr->write_full_cnt) ||
+            fpgaReadMMIO64(accel_handle, 0, MMIO_CSR_STATE, &dbgcsr->state) ||
+            fpgaReadMMIO64(accel_handle, 0, MMIO_CSR_CLK_CNT, &dbgcsr->clk_cnt));
 }
 void print_csr(struct debug_csr *dbgcsr) {
     printf("mem_read_idx %lu, write_req_cnt %lu, write_resp_cnt %lu, write_full_cnt %lu, state %#lx, clk_cnt %lu\n", dbgcsr->mem_read_idx, dbgcsr->write_req_cnt, dbgcsr->write_resp_cnt, dbgcsr->write_full_cnt, dbgcsr->state, dbgcsr->clk_cnt);

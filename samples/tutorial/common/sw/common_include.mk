@@ -61,8 +61,10 @@ LDFLAGS  += -L$(DESTDIR)$(prefix)/lib -Wl,-rpath-link -Wl,$(prefix)/lib -Wl,-rpa
             -L$(DESTDIR)$(prefix)/lib64 -Wl,-rpath-link -Wl,$(prefix)/lib64 -Wl,-rpath -Wl,$(DESTDIR)$(prefix)/lib64
 endif
 
+LDFLAGS += -luuid
+
 VAI_GUEST_DIR ?= ../../../../../vai-guest-module/
 CFLAGS += -I$(VAI_GUEST_DIR)/include
-FPGA_LIBS = -L$(VAI_GUEST_DIR) -lvai
-ASE_LIBS = -L${HOME}/vai-ase/lib64 -lopae-c-vai-ase
-VAI_FLAGS = -I${HOME}/vai-ase/include
+FPGA_LIBS = -lopae-c
+FPGA_VAI_LIBS += -L$(VAI_GUEST_DIR) -lvai
+ASE_LIBS = -lopae-c-vai-ase

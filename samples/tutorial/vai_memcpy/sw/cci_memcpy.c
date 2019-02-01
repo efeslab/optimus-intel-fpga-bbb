@@ -34,9 +34,14 @@
 #include <unistd.h>
 #include <assert.h>
 #include <string.h>
+#include <uuid/uuid.h>
 
-#include <vai/vai.h>
+#include <opae/fpga.h>
 #include "csr_addr.h"
+#include "afu_json_info.h"
+
+#define CACHELINE_BYTES 64
+#define CL(x) ((x) * CACHELINE_BYTES)
 
 struct status_cl {
     uint64_t completion;
@@ -45,8 +50,77 @@ struct status_cl {
     uint32_t n_write;
 };
 
+//
+// Search for an accelerator matching the requested UUID and connect to it.
+//
+static fpga_handle connect_to_accel(const char *accel_uuid)
+{
+    fpga_properties filter = NULL;
+    fpga_guid guid;
+    fpga_token accel_token;
+    uint32_t num_matches;
+    fpga_handle accel_handle;
+    fpga_result r;
+
+    // Don't print verbose messages in ASE by default
+    setenv("ASE_LOG", "0", 0);
+
+    // Set up a filter that will search for an accelerator
+    fpgaGetProperties(NULL, &filter);
+    fpgaPropertiesSetObjectType(filter, FPGA_ACCELERATOR);
+
+    // Add the desired UUID to the filter
+    uuid_parse(accel_uuid, guid);
+    fpgaPropertiesSetGUID(filter, guid);
+
+    // Do the search across the available FPGA contexts
+    num_matches = 1;
+    fpgaEnumerate(&filter, 1, &accel_token, 1, &num_matches);
+
+    // Not needed anymore
+    fpgaDestroyProperties(&filter);
+
+    if (num_matches < 1)
+    {
+        fprintf(stderr, "Accelerator %s not found!\n", accel_uuid);
+        return 0;
+    }
+
+    // Open accelerator
+    r = fpgaOpen(accel_token, &accel_handle, 0);
+    assert(FPGA_OK == r);
+
+    // Done with token
+    fpgaDestroyToken(&accel_token);
+
+    return accel_handle;
+}
+
+
+//
+// Allocate a buffer in I/O memory, shared with the FPGA.
+//
+static volatile void* alloc_buffer(fpga_handle accel_handle,
+                                   ssize_t size,
+                                   uint64_t *wsid,
+                                   uint64_t *io_addr)
+{
+    fpga_result r;
+    volatile void* buf;
+
+    r = fpgaPrepareBuffer(accel_handle, size, (void*)&buf, wsid, 0);
+    if (FPGA_OK != r) return NULL;
+
+    // Get the physical address of the buffer in the accelerator
+    r = fpgaGetIOAddress(accel_handle, *wsid, io_addr);
+    assert(FPGA_OK == r);
+
+    return buf;
+}
+
 int main(int argc, char *argv[])
 {
+    fpga_handle accel_handle;
     uint32_t wr_threshold;
     uint32_t num_pages;
     if (argc < 3) {
@@ -57,22 +131,17 @@ int main(int argc, char *argv[])
         wr_threshold = atoi(argv[1]);
         num_pages = atoi(argv[2]);
     }
-    struct vai_afu_conn *conn = vai_afu_connect();
     // buf[0] is src, buf[1] is dst, buf[2] is status flag
     volatile unsigned char *buf[3];
     uint64_t buf_pa[3];
+    uint64_t wsid[3];
     size_t buf_size = num_pages * getpagesize();
     size_t alloc_size[] = {buf_size, buf_size, getpagesize()};
+    accel_handle = connect_to_accel(AFU_ACCEL_UUID);
     // Allocate a single page memory buffer
     size_t i = 0;
     for (i=0; i < 3; ++i) {
-#ifdef ASE_REGION
-        vai_afu_alloc_region(conn, (void **)&buf[i], 0, alloc_size[i]);
-        buf_pa[i] = buf[i];
-#else
-        buf[i] = (volatile unsigned char *)vai_afu_malloc(conn, alloc_size[i]);
-        buf_pa[i] = (uint64_t)buf[i];
-#endif
+        buf[i] = alloc_buffer(accel_handle, alloc_size[i], &wsid[i], &buf_pa[i]);
         assert(NULL != buf[i]);
     }
     volatile struct status_cl *status_buf = (struct status_cl *) buf[2];
@@ -90,39 +159,40 @@ int main(int argc, char *argv[])
         status_buf->n_read = 0;
         status_buf->n_write = 0;
         bzero((void*)buf[1], buf_size);
-        assert(vai_afu_mmio_write(conn, MMIO_CSR_SOFT_RST, 0) == 0 &&
+        assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_SOFT_RST, 1) == 0 &&
                 "CSR_Soft_Reset afu failed");
         printf("afu csr_soft reseted\n");
         // Tell the accelerator the address of the buffer using cache line
         // addresses.  The accelerator will respond by writing to the buffer.
-        assert(vai_afu_mmio_write(conn, MMIO_CSR_STATUS_ADDR, buf_pa[2]/CL(1)) == 0 &&
+        assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_STATUS_ADDR, buf_pa[2]/CL(1)) == 0 &&
                 "Write Status Addr failed");
         printf("status addr is %lX\n", buf_pa[2]);
-        assert(vai_afu_mmio_write(conn, MMIO_CSR_SRC_ADDR, buf_pa[0]/CL(1)) == 0 &&
+        assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_SRC_ADDR, buf_pa[0]/CL(1)) == 0 &&
                 "Write SRC Addr failed");
         printf("SRC addr is %lX\n", buf_pa[0]);
-        assert(vai_afu_mmio_write(conn, MMIO_CSR_DST_ADDR, buf_pa[1]/CL(1)) == 0 &&
+        assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_DST_ADDR, buf_pa[1]/CL(1)) == 0 &&
                 "Write DST Addr failed");
         printf("DST addr is %lX\n", buf_pa[1]);
-        assert(vai_afu_mmio_write(conn, MMIO_CSR_NUM_LINES, buf_size/CL(1)) == 0 &&
+        assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_NUM_LINES, buf_size/CL(1)) == 0 &&
                 "Write Num Lines failed");
         printf("NUM lines %zu, buf_size is %zu\n", buf_size/CL(1), buf_size);
-        assert(vai_afu_mmio_write(conn, MMIO_CSR_WR_THRESHOLD, wr_threshold) == 0 &&
+        assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_WR_THRESHOLD, wr_threshold) == 0 &&
                 "Write WR_THRESHOLD failed");
         printf("Wr threashold is %u\n", wr_threshold);
-        assert(vai_afu_mmio_write(conn, MMIO_CSR_CTL, 1) == 0 &&
+        assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_CTL, 1) == 0 &&
                 "Write CSR CTL failed");
         printf("START!!!\n");
         struct debug_csr dc;
         // Spin, waiting for the value in memory to change to something non-zero.
 #ifdef TIMESLICING
         uint64_t ts_state;
-        while (!vai_afu_mmio_read(conn, MMIO_CSR_TS_STATE, &ts_state) && ts_state!=2UL)
+        while ((fpgaReadMMIO64(accel_handle, 0, MMIO_CSR_TS_STATE, &ts_state) == FPGA_OK)
+                && ts_state!=2UL)
 #else
         while (0 == status_buf->completion)
 #endif
         {
-            if (!get_debug_csr(conn, &dc))
+            if (!get_debug_csr(accel_handle, &dc))
                 print_csr(&dc);
             else {
                 perror("get_debug_csr error");
@@ -134,7 +204,7 @@ int main(int argc, char *argv[])
         };
         printf("Done: cycle is %lu, read is %u, write is %u\n",
                 status_buf->n_clk, status_buf->n_read, status_buf->n_write);
-        get_debug_csr(conn, &dc);
+        get_debug_csr(accel_handle, &dc);
         print_csr(&dc);
         for (i=0; i < buf_size; ++i) {
             if (buf[0][i] != buf[1][i]) {
@@ -151,9 +221,9 @@ int main(int argc, char *argv[])
 done:
     // Done
     for (i=0; i < 3; ++i) {
-        vai_afu_free(conn, buf[i]);
+        fpgaReleaseBuffer(accel_handle, wsid[i]);
     }
-    vai_afu_disconnect(conn);
+    fpgaClose(accel_handle);
 
     return 0;
 }

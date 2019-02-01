@@ -13,7 +13,7 @@ SRCS = $(TEST).c $(BASE_FILE_SRC)
 OBJS = $(addprefix $(OBJDIR)/,$(patsubst %.c,%.o,$(SRCS)))
 
 # Targets
-all: $(TEST)_ase
+all: $(TEST) $(TEST)_ase
 
 # AFU info from JSON file, including AFU UUID
 AFU_JSON_INFO = $(OBJDIR)/afu_json_info.h
