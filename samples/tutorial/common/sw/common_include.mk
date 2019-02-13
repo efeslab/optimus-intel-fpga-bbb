@@ -67,4 +67,5 @@ VAI_GUEST_DIR ?= ../../../../../vai-guest-module/
 CFLAGS += -I$(VAI_GUEST_DIR)/include
 FPGA_LIBS = -lopae-c
 FPGA_VAI_LIBS += -L$(VAI_GUEST_DIR) -lvai
-ASE_LIBS = -lopae-c-vai-ase
+ASE_LIBS += -lopae-c-ase
+VAI_ASE_LIBS = -lopae-c-vai-ase

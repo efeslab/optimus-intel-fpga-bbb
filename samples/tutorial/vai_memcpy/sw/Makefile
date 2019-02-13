@@ -24,8 +24,14 @@ $(OBJS): $(AFU_JSON_INFO)
 $(TEST): $(OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS) $(FPGA_LIBS)
 
+$(TEST)_vai: $(OBJS)
+	$(CC) -o $@ $^ $(LDFLAGS) $(FPGA_VAI_LIBS)
+
 $(TEST)_ase: $(OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS) $(ASE_LIBS)
+
+$(TEST)_vai_ase: $(OBJS)
+	$(CC) -o $@ $^ $(LDFLAGS) $(VAI_ASE_LIBS)
 
 $(OBJDIR)/%.o: %.c | objdir
 	$(CC) $(CFLAGS) -c $< -o $@
