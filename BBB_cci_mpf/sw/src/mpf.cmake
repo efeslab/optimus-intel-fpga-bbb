@@ -32,23 +32,13 @@ file(
     HDR
     ${PROJECT_SOURCE_DIR}/include/opae/mpf/*.h
     )
-file(
-    GLOB
-    HDR_CXX
-    ${PROJECT_SOURCE_DIR}/include/opae/mpf/cxx/*.h
-    )
 
 aux_source_directory(
     ${PROJECT_SOURCE_DIR}/src/libmpf
     LIBMPF
     )
-aux_source_directory(
-    ${PROJECT_SOURCE_DIR}/src/libmpf++
-    LIBMPF_CXX
-    )
 
 add_library(MPF SHARED ${LIBMPF})
-add_library(MPF-cxx SHARED ${LIBMPF_CXX})
 
 get_property(LIB64 GLOBAL PROPERTY FIND_LIBRARY_USE_LIB64_PATHS)
 if ("${LIB64}" STREQUAL "TRUE")
@@ -58,14 +48,13 @@ else()
 endif()
 
 install(
-    TARGETS MPF MPF-cxx
+    TARGETS MPF
     RUNTIME DESTINATION bin
     LIBRARY DESTINATION ${LIB_DIR}
     ARCHIVE DESTINATION ${LIB_DIR}
     )
 
 install(FILES ${HDR} DESTINATION include/opae/mpf)
-install(FILES ${HDR_CXX} DESTINATION include/opae/mpf/cxx)
 
 ##
 ## Add pthreads to the generated library.  VTP uses a mutex to guarantee
@@ -74,10 +63,8 @@ install(FILES ${HDR_CXX} DESTINATION include/opae/mpf/cxx)
 find_package(Threads REQUIRED)
 if(CMAKE_THREAD_LIBS_INIT)
     target_link_libraries(MPF "${CMAKE_THREAD_LIBS_INIT}")
-    target_link_libraries(MPF-cxx "${CMAKE_THREAD_LIBS_INIT}")
 endif()
 
 if(OPAELIB_LIBS_PATH)
     target_link_libraries(MPF OpaeLib)
-    target_link_libraries(MPF-cxx OpaeLib)
 endif()
