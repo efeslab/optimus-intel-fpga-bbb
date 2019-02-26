@@ -57,7 +57,7 @@ package cci_mpf_if_pkg;
 `ifdef MPF_HOST_IFC_CCIS
     parameter CCI_PLATFORM_MDATA_WIDTH = CCIS_MDATA_WIDTH;
 `elsif MPF_HOST_IFC_CCIP
-    parameter CCI_PLATFORM_MDATA_WIDTH = CCIP_MDATA_WIDTH;
+    parameter CCI_PLATFORM_MDATA_WIDTH = CCIP_MDATA_WIDTH - 4;
 `else
     ** ERROR: Select a valid platform
 `endif

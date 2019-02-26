@@ -48,6 +48,7 @@ import ccip_if_pkg::*;
 //
 
 `define MPF_HOST_IFC_CCIP
+`define MPF_HOST_IFC_CCIP_VIRT
 
 // CCI-P with support for WrPush_I
 `define MPF_HOST_IFC_CCIP_WRPUSH
