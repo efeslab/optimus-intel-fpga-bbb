@@ -29,68 +29,36 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 /**
- * \file mpf_internal.h
- * \brief MPF internal data structures
+ * \file shim_latency_qos.h
+ * \brief MPF Latency QoS shim
  */
 
-#ifndef __FPGA_MPF_INTERNAL_H__
-#define __FPGA_MPF_INTERNAL_H__
+#ifndef __FPGA_MPF_SHIM_LATENCY_QOS_H__
+#define __FPGA_MPF_SHIM_LATENCY_QOS_H__
 
-#include <stdint.h>
-
-/*
- * Convenience macros for printing messages and errors.
- */
-#ifdef __MPF_SHORT_FILE__
-#undef __MPF_SHORT_FILE__
-#endif // __MPF_SHORT_FILE__
-#define __MPF_SHORT_FILE__             \
-({ const char *file = __FILE__;    \
-   const char *p    = file;        \
-   while ( *p ) { ++p; }           \
-   while ( (p > file)  &&          \
-           ('/'  != *p) &&         \
-           ('\\' != *p) ) { --p; } \
-   if ( p > file ) { ++p; }        \
-   p;                              \
-})
-
-#ifdef MPF_FPGA_MSG
-#undef MPF_FPGA_MSG
-#endif // MPF_FPGA_MSG
-#define MPF_FPGA_MSG(format, ...)\
-    do { \
-        printf( "%s:%u:%s() : " format "\n", __MPF_SHORT_FILE__, __LINE__,\
-                                             __func__, ## __VA_ARGS__ ); \
-        fflush(stdout); \
-    } while(0);
-
-// Forward declaration to avoid circular dependence.
-typedef struct _mpf_handle_t* _mpf_handle_p;
-
-#include "mpf_os.h"
-#include "shim_vtp_internal.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 
 /**
- * Internal structure for maintaining connected MPF state
+ * Set the Latency QoS configuration.
+ *
+ * Configuration is set using a single 64 bit register.  See
+ * cci_mpf_shim_latency_qos.sv for the meaning of each field.
+ *
+ * @param[in]  mpf_handle       MPF handle initialized by mpfConnect().
+ * @param[in]  config           Configuration bits.
+ * @returns                     FPGA_OK on success.
  */
-struct _mpf_handle_t
-{
-    // Arguments passed to mpfConnect()
-    fpga_handle handle;
-    uint32_t mmio_num;
-    uint64_t mmio_offset;
-
-    // Base MMIO offset of each shim.  0 if shim not present.
-    uint64_t shim_mmio_base[CCI_MPF_SHIM_LAST_IDX];
-
-    // VTP state
-    mpf_vtp_state vtp;
-
-    // Debug mode requested in mpf_flags?
-    bool dbg_mode;
-};
+fpga_result __MPF_API__ mpfLatencyQosSetConfig(
+    mpf_handle_t mpf_handle,
+    uint64_t config
+);
 
 
-#endif // __FPGA_MPF_INTERNAL_H__
+#ifdef __cplusplus
+}
+#endif
+
+#endif // __FPGA_MPF_SHIM_LATENCY_QOS_H__

@@ -29,68 +29,32 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 /**
- * \file mpf_internal.h
- * \brief MPF internal data structures
+ * \file shim_wro.c
+ * \brief MPF WRO (write/read order) shim
  */
 
-#ifndef __FPGA_MPF_INTERNAL_H__
-#define __FPGA_MPF_INTERNAL_H__
+#include <string.h>
 
-#include <stdint.h>
-
-/*
- * Convenience macros for printing messages and errors.
- */
-#ifdef __MPF_SHORT_FILE__
-#undef __MPF_SHORT_FILE__
-#endif // __MPF_SHORT_FILE__
-#define __MPF_SHORT_FILE__             \
-({ const char *file = __FILE__;    \
-   const char *p    = file;        \
-   while ( *p ) { ++p; }           \
-   while ( (p > file)  &&          \
-           ('/'  != *p) &&         \
-           ('\\' != *p) ) { --p; } \
-   if ( p > file ) { ++p; }        \
-   p;                              \
-})
-
-#ifdef MPF_FPGA_MSG
-#undef MPF_FPGA_MSG
-#endif // MPF_FPGA_MSG
-#define MPF_FPGA_MSG(format, ...)\
-    do { \
-        printf( "%s:%u:%s() : " format "\n", __MPF_SHORT_FILE__, __LINE__,\
-                                             __func__, ## __VA_ARGS__ ); \
-        fflush(stdout); \
-    } while(0);
-
-// Forward declaration to avoid circular dependence.
-typedef struct _mpf_handle_t* _mpf_handle_p;
-
-#include "mpf_os.h"
-#include "shim_vtp_internal.h"
+#include <vai/mpf/mpf.h>
+#include "mpf_internal.h"
 
 
-/**
- * Internal structure for maintaining connected MPF state
- */
-struct _mpf_handle_t
+fpga_result __MPF_API__ mpfWroGetStats(
+    mpf_handle_t mpf_handle,
+    mpf_wro_stats* stats
+)
 {
-    // Arguments passed to mpfConnect()
-    fpga_handle handle;
-    uint32_t mmio_num;
-    uint64_t mmio_offset;
+    // Is the WRO feature present?
+    if (! mpfShimPresent(mpf_handle, CCI_MPF_SHIM_WRO))
+    {
+        memset(stats, -1, sizeof(mpf_wro_stats));
+        return FPGA_NOT_SUPPORTED;
+    }
 
-    // Base MMIO offset of each shim.  0 if shim not present.
-    uint64_t shim_mmio_base[CCI_MPF_SHIM_LAST_IDX];
+    stats->numConflictCyclesRR = mpfReadCsr(mpf_handle, CCI_MPF_SHIM_WRO, CCI_MPF_WRO_CSR_STAT_RR_CONFLICT, NULL);
+    stats->numConflictCyclesRW = mpfReadCsr(mpf_handle, CCI_MPF_SHIM_WRO, CCI_MPF_WRO_CSR_STAT_RW_CONFLICT, NULL);
+    stats->numConflictCyclesWR = mpfReadCsr(mpf_handle, CCI_MPF_SHIM_WRO, CCI_MPF_WRO_CSR_STAT_WR_CONFLICT, NULL);
+    stats->numConflictCyclesWW = mpfReadCsr(mpf_handle, CCI_MPF_SHIM_WRO, CCI_MPF_WRO_CSR_STAT_WW_CONFLICT, NULL);
 
-    // VTP state
-    mpf_vtp_state vtp;
-
-    // Debug mode requested in mpf_flags?
-    bool dbg_mode;
-};
-
-
-#endif // __FPGA_MPF_INTERNAL_H__
+    return FPGA_OK;
+}

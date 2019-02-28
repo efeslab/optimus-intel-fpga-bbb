@@ -29,68 +29,39 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 /**
- * \file mpf_internal.h
- * \brief MPF internal data structures
+ * \file mpf.h
+ * \brief CCI Memory Properties Factory API
  */
-
-#ifndef __FPGA_MPF_INTERNAL_H__
-#define __FPGA_MPF_INTERNAL_H__
-
-#include <stdint.h>
-
-/*
- * Convenience macros for printing messages and errors.
- */
-#ifdef __MPF_SHORT_FILE__
-#undef __MPF_SHORT_FILE__
-#endif // __MPF_SHORT_FILE__
-#define __MPF_SHORT_FILE__             \
-({ const char *file = __FILE__;    \
-   const char *p    = file;        \
-   while ( *p ) { ++p; }           \
-   while ( (p > file)  &&          \
-           ('/'  != *p) &&         \
-           ('\\' != *p) ) { --p; } \
-   if ( p > file ) { ++p; }        \
-   p;                              \
-})
-
-#ifdef MPF_FPGA_MSG
-#undef MPF_FPGA_MSG
-#endif // MPF_FPGA_MSG
-#define MPF_FPGA_MSG(format, ...)\
-    do { \
-        printf( "%s:%u:%s() : " format "\n", __MPF_SHORT_FILE__, __LINE__,\
-                                             __func__, ## __VA_ARGS__ ); \
-        fflush(stdout); \
-    } while(0);
-
-// Forward declaration to avoid circular dependence.
-typedef struct _mpf_handle_t* _mpf_handle_p;
-
-#include "mpf_os.h"
-#include "shim_vtp_internal.h"
-
 
 /**
- * Internal structure for maintaining connected MPF state
+ * @mainpage Memory Properties Factory BBB
+ * @section mpf_c_api C API for MPF
+ * @subsection mpf_c_key_functions Key functions
+ *
+ * - Initialize MPF and connect to an AFU with mpfConnect()
+ * - Test whether a shim is instantiated in a connected AFU with mpfShimPresent()
+ * - Control channel mapping on AFUs with VC Map enabled using functions
+ *   in shim_vc_map.h
+ *
+ * - Many shims have functions that read statistics:
+ *   - VC Map (virtual channel mapper): mpfVcMapGetStats()
+ *   - WRO (write/read order): mpfWroGetStats()
+ *   - PWrite (partial write): mpfPwriteGetStats()
  */
-struct _mpf_handle_t
-{
-    // Arguments passed to mpfConnect()
-    fpga_handle handle;
-    uint32_t mmio_num;
-    uint64_t mmio_offset;
 
-    // Base MMIO offset of each shim.  0 if shim not present.
-    uint64_t shim_mmio_base[CCI_MPF_SHIM_LAST_IDX];
+#ifndef __FPGA_MPF_MPF_H__
+#define __FPGA_MPF_MPF_H__
 
-    // VTP state
-    mpf_vtp_state vtp;
+#include <stdbool.h>
+#include <stdint.h>
 
-    // Debug mode requested in mpf_flags?
-    bool dbg_mode;
-};
+#include <vai/vai.h>
+#include <vai/mpf/types.h>
+#include <vai/mpf/connect.h>
+#include <vai/mpf/csrs.h>
+#include <vai/mpf/shim_latency_qos.h>
+#include <vai/mpf/shim_pwrite.h>
+#include <vai/mpf/shim_vc_map.h>
+#include <vai/mpf/shim_wro.h>
 
-
-#endif // __FPGA_MPF_INTERNAL_H__
+#endif // __FPGA_MPF_MPF_H__

@@ -37,6 +37,7 @@
 #define __FPGA_MPF_INTERNAL_H__
 
 #include <stdint.h>
+#include <stdio.h>
 
 /*
  * Convenience macros for printing messages and errors.
@@ -68,8 +69,6 @@
 // Forward declaration to avoid circular dependence.
 typedef struct _mpf_handle_t* _mpf_handle_p;
 
-#include "mpf_os.h"
-#include "shim_vtp_internal.h"
 
 
 /**
@@ -78,15 +77,10 @@ typedef struct _mpf_handle_t* _mpf_handle_p;
 struct _mpf_handle_t
 {
     // Arguments passed to mpfConnect()
-    fpga_handle handle;
-    uint32_t mmio_num;
-    uint64_t mmio_offset;
+    struct vai_afu_conn *vai_conn;
 
     // Base MMIO offset of each shim.  0 if shim not present.
     uint64_t shim_mmio_base[CCI_MPF_SHIM_LAST_IDX];
-
-    // VTP state
-    mpf_vtp_state vtp;
 
     // Debug mode requested in mpf_flags?
     bool dbg_mode;

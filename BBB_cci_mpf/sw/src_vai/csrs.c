@@ -28,69 +28,56 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-/**
- * \file mpf_internal.h
- * \brief MPF internal data structures
- */
-
-#ifndef __FPGA_MPF_INTERNAL_H__
-#define __FPGA_MPF_INTERNAL_H__
-
-#include <stdint.h>
-
-/*
- * Convenience macros for printing messages and errors.
- */
-#ifdef __MPF_SHORT_FILE__
-#undef __MPF_SHORT_FILE__
-#endif // __MPF_SHORT_FILE__
-#define __MPF_SHORT_FILE__             \
-({ const char *file = __FILE__;    \
-   const char *p    = file;        \
-   while ( *p ) { ++p; }           \
-   while ( (p > file)  &&          \
-           ('/'  != *p) &&         \
-           ('\\' != *p) ) { --p; } \
-   if ( p > file ) { ++p; }        \
-   p;                              \
-})
-
-#ifdef MPF_FPGA_MSG
-#undef MPF_FPGA_MSG
-#endif // MPF_FPGA_MSG
-#define MPF_FPGA_MSG(format, ...)\
-    do { \
-        printf( "%s:%u:%s() : " format "\n", __MPF_SHORT_FILE__, __LINE__,\
-                                             __func__, ## __VA_ARGS__ ); \
-        fflush(stdout); \
-    } while(0);
-
-// Forward declaration to avoid circular dependence.
-typedef struct _mpf_handle_t* _mpf_handle_p;
-
-#include "mpf_os.h"
-#include "shim_vtp_internal.h"
+#include <vai/mpf/mpf.h>
+#include "mpf_internal.h"
 
 
-/**
- * Internal structure for maintaining connected MPF state
- */
-struct _mpf_handle_t
+fpga_result __MPF_API__ mpfWriteCsr(
+    mpf_handle_t mpf_handle,
+    t_cci_mpf_shim_idx mpf_shim_idx,
+    uint64_t shim_csr_offset,
+    uint64_t value
+)
 {
-    // Arguments passed to mpfConnect()
-    fpga_handle handle;
-    uint32_t mmio_num;
-    uint64_t mmio_offset;
+    _mpf_handle_p _mpf_handle = (_mpf_handle_p)mpf_handle;
 
-    // Base MMIO offset of each shim.  0 if shim not present.
-    uint64_t shim_mmio_base[CCI_MPF_SHIM_LAST_IDX];
+    if (! mpfShimPresent(mpf_handle, mpf_shim_idx))
+    {
+        return FPGA_NOT_FOUND;
+    }
 
-    // VTP state
-    mpf_vtp_state vtp;
-
-    // Debug mode requested in mpf_flags?
-    bool dbg_mode;
-};
+    return vai_afu_mmio_write(_mpf_handle->vai_conn,
+                           shim_csr_offset + _mpf_handle->shim_mmio_base[mpf_shim_idx],
+                           value);
+}
 
 
-#endif // __FPGA_MPF_INTERNAL_H__
+uint64_t __MPF_API__ mpfReadCsr(
+    mpf_handle_t mpf_handle,
+    t_cci_mpf_shim_idx mpf_shim_idx,
+    uint64_t shim_csr_offset,
+    fpga_result* result
+)
+{
+    _mpf_handle_p _mpf_handle = (_mpf_handle_p)mpf_handle;
+    fpga_result r = FPGA_OK;
+    uint64_t value = (uint64_t) -1;
+
+    if (! mpfShimPresent(mpf_handle, mpf_shim_idx))
+    {
+        r = FPGA_NOT_FOUND;
+    }
+    else
+    {
+        r = vai_afu_mmio_read(_mpf_handle->vai_conn,
+                           shim_csr_offset + _mpf_handle->shim_mmio_base[mpf_shim_idx],
+                           &value);
+    }
+
+    if (NULL != result)
+    {
+        *result = r;
+    }
+
+    return value;
+}
