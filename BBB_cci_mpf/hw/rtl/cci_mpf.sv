@@ -66,8 +66,10 @@ module cci_mpf
     // terminate the feature list if the next address is 0.
     parameter DFH_MMIO_NEXT_ADDR = 0,
 
+    /* In the virtualization we disable VTP, since we use SPT
     // Enable virtual to physical translation?
     parameter ENABLE_VTP = 1,
+    */
 
     // Enable mapping of eVC_VA to physical channels?  AFUs that both use
     // eVC_VA and read back memory locations written by the AFU must either
@@ -159,8 +161,15 @@ module cci_mpf
     localparam MAX_ACTIVE_REQS = 1024;
 `endif
 
+    // force the VTP to be disabled
+    localparam ENABLE_VTP = 0,
+
     // Reserved bits in the mdata field, used by various modules.
-    localparam RESERVED_MDATA_IDX = CCI_PLATFORM_MDATA_WIDTH - 2;
+    // localparam RESERVED_MDATA_IDX = CCI_PLATFORM_MDATA_WIDTH - 2;
+
+    // We modify the reserved to bit 11, since the MUX will use bit 12-15 to decide the AFU,
+    // and the mux will only use the loest 10 bits. This won't influence the function of MPF.
+    localparam RESERVED_MDATA_IDX = CCI_PLATFORM_MDATA_WIDTH - 5;
 
     // No point in enabling VC Map when there is only one channel
     localparam MPF_ENABLE_VC_MAP =
