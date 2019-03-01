@@ -13,3 +13,6 @@ qdb/*
 *.so.0
 helloALInlb
 unit_build
+cscope.out
+cscope.in.out
+cscope.po.out
