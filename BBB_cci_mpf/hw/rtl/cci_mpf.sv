@@ -162,7 +162,7 @@ module cci_mpf
 `endif
 
     // force the VTP to be disabled
-    localparam ENABLE_VTP = 0,
+    localparam ENABLE_VTP = 0;
 
     // Reserved bits in the mdata field, used by various modules.
     // localparam RESERVED_MDATA_IDX = CCI_PLATFORM_MDATA_WIDTH - 2;
