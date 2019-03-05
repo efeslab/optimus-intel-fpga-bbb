@@ -150,16 +150,19 @@ module ccip_std_afu
     localparam MMIO_CSR_RAND_SEED_0 = 16'h48 >> 2;
     localparam MMIO_CSR_RAND_SEED_1 = 16'h50 >> 2;
     localparam MMIO_CSR_RAND_SEED_2 = 16'h58 >> 2;
-    localparam MMIO_CSR_REPORT_ADDR = 16'h60 >> 2;
+    localparam MMIO_CSR_STATUS_ADDR = 16'h60 >> 2;
+    // filter out the latency of accesses to which pages will be recorded
+    localparam MMIO_CSR_REC_FILTER = 16'h68 >> 2;
     //------------------ Default value--------------------
     // Memory address to which this AFU will write.
     localparam DEFAULT_CSR_MEM_BASE = t_ccip_clAddr'(0);
-    localparam DEFAULT_LEN_MASK = 32'h0;
     localparam DEFAULT_RAND_SEED_0 = 64'h812765dd017492a3;
     localparam DEFAULT_RAND_SEED_1 = 64'hdb2042bc38c704e3;
     localparam DEFAULT_RAND_SEED_2 = 64'h39e8e59c761c69c6;
-    t_ccip_clAddr base_addr, report_addr;
+    t_ccip_clAddr base_addr, report_addr, status_addr;
+    assign report_addr = (status_addr + 1);
     logic [31:0] len_mask;
+    logic [25:0] rec_filter;
     logic [63:0] clk_cnt;
     logic [63:0] read_cnt,  read_total;
     logic [63:0] write_cnt, write_total;
@@ -183,6 +186,7 @@ module ccip_std_afu
     {
         STATE_IDLE,
         STATE_REPORT,
+        STATE_FINISH,
         STATE_RUN
     }
     t_state;
@@ -252,7 +256,8 @@ module ccip_std_afu
         if (reset)
         begin
             base_addr <= DEFAULT_CSR_MEM_BASE;
-            len_mask <= DEFAULT_LEN_MASK;
+            len_mask <= 0;
+            rec_filter <= 0;
             read_total <= 64'h0;
             write_total <= 64'h0;
             rand_seed[0] <= DEFAULT_RAND_SEED_0;
@@ -265,6 +270,7 @@ module ccip_std_afu
             case(mmio_req_hdr.address)
                 MMIO_CSR_MEM_BASE: base_addr <= t_ccip_clAddr'(sRx.c0.data);
                 MMIO_CSR_LEN_MASK: len_mask <= sRx.c0.data[31:0];
+                MMIO_CSR_REC_FILTER: rec_filter <= sRx.c0.data[25:0];
                 MMIO_CSR_READ_TOTAL: read_total <= sRx.c0.data;
                 MMIO_CSR_WRITE_TOTAL: write_total <= sRx.c0.data;
                 // Read VA: 0:1, Write VA: 2:3
@@ -299,7 +305,7 @@ module ccip_std_afu
                 MMIO_CSR_RAND_SEED_0: rand_seed[0] <= sRx.c0.data;
                 MMIO_CSR_RAND_SEED_1: rand_seed[1] <= sRx.c0.data;
                 MMIO_CSR_RAND_SEED_2: rand_seed[2] <= sRx.c0.data;
-                MMIO_CSR_REPORT_ADDR: report_addr <= t_ccip_clAddr'(sRx.c0.data);
+                MMIO_CSR_STATUS_ADDR: status_addr <= t_ccip_clAddr'(sRx.c0.data);
                 MMIO_CSR_CTL: csr_ctl_start <= sRx.c0.data[0];
                 default:
                 begin
@@ -322,6 +328,7 @@ module ccip_std_afu
     // =========================================================================
 
     logic read_done, write_done, can_read, can_write, do_read, do_write;
+    logic report_done, finish_done; // finish_done is set after write complete bit
     //
     // State machine
     //
@@ -357,7 +364,12 @@ module ccip_std_afu
                 state <= STATE_REPORT;
                 $display("AFU reporting...");
             end
-            if ((state == STATE_REPORT))
+            if (state == STATE_REPORT && report_done)
+            begin
+                csr_ts_state <= CSR_TS_RUNNING;
+                state <= STATE_FINISH;
+            end
+            if (state == STATE_FINISH && finish_done)
             begin
                 csr_ts_state <= CSR_TS_DONE;
                 state <= STATE_IDLE;
@@ -383,8 +395,25 @@ module ccip_std_afu
         if (reset) begin rw_priority <= 1'b0; end
         else begin rw_priority <= rw_priority? !do_write: do_read; end
     end
+    // record latenct per request
+    localparam RECORD_NUM = 128;
+    localparam RECORD_WIDTH = 16;
+    localparam REPORT_UNIT = (CCIP_CLDATA_WIDTH/RECORD_WIDTH);
+    initial begin
+        assert ((RECORD_NUM%REPORT_UNIT)==0)
+        else
+            $error("RECORD_NUM %d should divide REPORT_UNIT %d", RECORD_NUM, REPORT_UNIT);
+    end
+    logic [RECORD_WIDTH-1:0] latbgn [RECORD_NUM - 1 : 0];
+    logic [RECORD_WIDTH-1:0] latrec [RECORD_NUM - 1 : 0];
+    logic [$clog2(RECORD_NUM):0] reccnt, report_reccnt, c0Rx_reccnt, c1Rx_reccnt;
+    logic should_rec;
+    assign should_rec = (random_offset[31:6] == rec_filter) && (reccnt != RECORD_NUM);
+    assign c0Rx_reccnt = sRx.c0.hdr.mdata[$clog2(RECORD_NUM):0];
+    assign c1Rx_reccnt = sRx.c1.hdr.mdata[$clog2(RECORD_NUM):0];
+    assign report_done = (report_reccnt == reccnt);
     /*
-     * send memory read requests
+     * send memory read and write requests
      */
     always_ff @(posedge clk)
     begin
@@ -392,84 +421,122 @@ module ccip_std_afu
         begin
             sTx.c0.valid <= 1'b0;
             sTx.c0.hdr <= t_ccip_c0_ReqMemHdr'(0);
+            reccnt <= 0;
+            sTx.c1.valid <= 1'b0;
+            sTx.c1.hdr <= t_ccip_c1_ReqMemHdr'(0);
+            sTx.c1.data <= 0;
+            report_reccnt <= 0;
+            finish_done <= 0;
         end
-        if (state == STATE_RUN && do_read)
-        begin
-            sTx.c0.valid <= 1'b1;
-            sTx.c0.hdr.vc_sel <= read_vc;
-            sTx.c0.hdr.cl_len <= eCL_LEN_1;
-            sTx.c0.hdr.req_type <= read_hint;
-            sTx.c0.hdr.address <= next_addr;
-            sTx.c0.hdr.mdata <= random_offset[MDATA_WIDTH-1:0]; // this counter will wrap around at 0x7fff
-        end
-        else begin
-            sTx.c0.valid <= 1'b0;
-            sTx.c0.hdr <= t_ccip_c0_ReqMemHdr'(0);
-        end
+        case (state)
+            STATE_RUN: begin
+                if (do_read) begin
+                    sTx.c0.valid <= 1'b1;
+                    sTx.c0.hdr.vc_sel <= read_vc;
+                    sTx.c0.hdr.cl_len <= eCL_LEN_1;
+                    sTx.c0.hdr.req_type <= read_hint;
+                    sTx.c0.hdr.address <= next_addr;
+                    if (should_rec) begin
+                        sTx.c0.hdr.mdata <= reccnt;
+                        latbgn[reccnt] <= clk_cnt[RECORD_WIDTH-1:0];
+                        reccnt <= reccnt + 1;
+                    end
+                    else begin
+                        sTx.c0.hdr.mdata <= RECORD_NUM;
+                    end
+                end
+                else begin
+                    sTx.c0.valid <= 1'b0;
+                    sTx.c0.hdr <= t_ccip_c0_ReqMemHdr'(0);
+                end
+                if (do_write) begin
+                    sTx.c1.valid <= 1'b1;
+                    sTx.c1.hdr.vc_sel <= write_vc;
+                    sTx.c1.hdr.sop <= 1'b1;
+                    sTx.c1.hdr.cl_len <= eCL_LEN_1;
+                    sTx.c1.hdr.req_type <= write_hint;
+                    sTx.c1.hdr.address <= next_addr;
+                    sTx.c1.data <= random_offset;
+                    if (should_rec) begin
+                        sTx.c1.hdr.mdata <= reccnt;
+                        latbgn[reccnt] <= clk_cnt[RECORD_WIDTH-1:0];
+                        reccnt <= reccnt + 1;
+                    end
+                    else begin
+                        sTx.c1.hdr.mdata <= RECORD_NUM;
+                    end
+                end
+                else begin
+                    sTx.c1.valid <= 1'b0;
+                    sTx.c1.hdr <= t_ccip_c1_ReqMemHdr'(0);
+                end
+            end
+            STATE_REPORT: begin
+                if (!sRx.c1TxAlmFull && !report_done) begin
+                    sTx.c1.valid <= 1'b1;
+                    sTx.c1.hdr.vc_sel <= eVC_VL0;
+                    sTx.c1.hdr.sop <= 1'b1;
+                    sTx.c1.hdr.cl_len <= eCL_LEN_1;
+                    sTx.c1.hdr.req_type <= eREQ_WRLINE_I;
+                    sTx.c1.hdr.address <= report_addr + report_reccnt[$clog2(RECORD_NUM):$clog2(REPORT_UNIT)];
+                    sTx.c1.hdr.mdata <= t_ccip_mdata'(0);
+                    sTx.c1.data <= t_ccip_clData'(latrec[report_reccnt+:REPORT_UNIT]);
+                    report_reccnt <= report_reccnt + REPORT_UNIT;
+                end
+                else
+                    sTx.c1.valid <= 1'b0;
+            end
+            STATE_FINISH: begin
+                if (!sRx.c1TxAlmFull && !finish_done) begin
+                    sTx.c1.valid <= 1'b1;
+                    sTx.c1.hdr.vc_sel <= eVC_VL0;
+                    sTx.c1.hdr.sop <= 1'b1;
+                    sTx.c1.hdr.cl_len <= eCL_LEN_1;
+                    sTx.c1.hdr.req_type <= eREQ_WRLINE_I;
+                    sTx.c1.hdr.address <= status_addr;
+                    sTx.c1.hdr.mdata <= t_ccip_mdata'(0);
+                    sTx.c1.data[0] <= 1'b1;
+                    sTx.c1.data[63:1] <= 0;
+                    sTx.c1.data[127:64] <= clk_cnt;
+                    sTx.c1.data[511:128] <= 0;
+                    finish_done <= 1;
+                end
+                else
+                    sTx.c1.valid <= 1'b0;
+            end
+            default: begin
+                sTx.c0.valid <= 1'b0;
+                sTx.c1.valid <= 1'b0;
+            end
+        endcase
     end
-    // received memory read response
+    /*
+     * handle memory read and write response
+     */
     always_ff @(posedge clk)
     begin
         if (reset)
         begin
             read_cnt <= 64'h0;
+            write_cnt <= 64'h0;
+        end
+        if (sRx.c1.rspValid == 1'b1)
+        begin
+            write_cnt <= write_cnt + 1;
+            if (c1Rx_reccnt != RECORD_NUM)
+            begin
+                latrec[c1Rx_reccnt][RECORD_WIDTH-2:0] <= clk_cnt[RECORD_WIDTH-1:0] - latbgn[c1Rx_reccnt];
+                latrec[c1Rx_reccnt][RECORD_WIDTH-1] <= 1'b1; // last bit == 0: write request
+            end
         end
         if (sRx.c0.rspValid == 1'b1)
         begin
             read_cnt <= read_cnt + 1;
-        end
-    end
-    /*
-     * send memory write requests
-     */
-    always_ff @(posedge clk)
-    begin
-        if (reset)
-        begin
-            sTx.c1.valid <= 1'b0;
-            sTx.c1.hdr <= t_ccip_c1_ReqMemHdr'(0);
-            sTx.c1.data <= 0;
-        end
-        if (state == STATE_RUN && do_write)
-        begin
-            sTx.c1.valid <= 1'b1;
-            sTx.c1.hdr.vc_sel <= write_vc;
-            sTx.c1.hdr.sop <= 1'b1;
-            sTx.c1.hdr.cl_len <= eCL_LEN_1;
-            sTx.c1.hdr.req_type <= write_hint;
-            sTx.c1.hdr.address <= next_addr;
-            sTx.c1.hdr.mdata <= random_offset[MDATA_WIDTH-1:0];
-            sTx.c1.data <= random_offset;
-        end
-        // TODO record latency per request
-        else if (state == STATE_REPORT)
-        begin
-            sTx.c1.valid <= 1'b1;
-            sTx.c1.hdr.vc_sel <= eVC_VL0;
-            sTx.c1.hdr.sop <= 1'b1;
-            sTx.c1.hdr.cl_len <= eCL_LEN_1;
-            sTx.c1.hdr.req_type <= eREQ_WRLINE_I;
-            sTx.c1.hdr.address <= report_addr;
-            sTx.c1.hdr.mdata <= t_ccip_mdata'(0);
-            sTx.c1.data[0] <= 1'b1;
-            sTx.c1.data[127:64] <= clk_cnt;
-        end
-        else begin
-            sTx.c1.valid <= 1'b0;
-        end
-    end
-    /*
-     * handle memory write response
-     */
-    always_ff @(posedge clk)
-    begin
-        if (reset)
-        begin
-            write_cnt <= 64'h0;
-        end
-        else if ( sRx.c1.rspValid == 1'b1)
-        begin
-            write_cnt <= write_cnt + 1;
+            if (c0Rx_reccnt != RECORD_NUM)
+            begin
+                latrec[c0Rx_reccnt][RECORD_WIDTH-2:0] <= clk_cnt[RECORD_WIDTH-1:0] - latbgn[c0Rx_reccnt]; // intended overflow here
+                latrec[c0Rx_reccnt][RECORD_WIDTH-1] <= 1'b0; // last bit == 0: read request
+            end
         end
     end
     /*

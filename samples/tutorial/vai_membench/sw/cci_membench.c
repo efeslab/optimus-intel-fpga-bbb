@@ -38,19 +38,14 @@
 #include <time.h>
 
 #include <opae/fpga.h>
-#include "csr_addr.h"
 #include "afu_json_info.h"
+#include "csr_addr.h"
+#include "report.h"
+#include "utils.h"
 
 #define CACHELINE_BYTES 64
 #define CL(x) ((x) * CACHELINE_BYTES)
 #define RAND64 ((uint64_t)(rand()) | ((uint64_t)(rand()) << 32))
-
-struct status_cl {
-    uint64_t completion;
-    uint64_t n_clk;
-    uint32_t n_read;
-    uint32_t n_write;
-};
 
 //
 // Search for an accelerator matching the requested UUID and connect to it.
@@ -188,6 +183,7 @@ found_prop:
         assert(NULL != buf[i]);
     }
     volatile struct status_cl *status_buf = (struct status_cl *) buf[1];
+    volatile report_t *report_buf = (report_t *)(buf[1] + CL(1));
 
     // reset to uncompleted
     status_buf->completion = 0;
@@ -216,6 +212,8 @@ found_prop:
     assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_RAND_SEED_2, rand_seed[2]) == FPGA_OK &&
             "Write RAND_SEED_2 failed");
     printf("RAND SEED \n\t%0lx\n\t%0lx\n\t%0lx\n", rand_seed[0], rand_seed[1], rand_seed[2]); 
+    assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_REC_FILTER, 0) == FPGA_OK &&
+            "Write REC_FILTER failed");
     assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_PROPERTIES, csr_properties) == FPGA_OK &&
             "Write PROPERTIES failed");
     printf("PROPERTIES: %s %s %s %s\n",
@@ -248,7 +246,18 @@ found_prop:
             status_buf->n_clk);
     get_debug_csr(accel_handle, &dc);
     print_csr(&dc);
-
+    uint32_t lat_total = 0;;
+    uint16_t lat_max = 0;
+    uint16_t lat_min = 0xffff;
+    for (size_t i=0; i < RECORD_NUM; ++i) {
+        uint16_t r = report_buf->lat[i];
+        uint16_t lat = r & RECORD_LAT_MASK;
+        printf(" %s: lat %u\n", (r&RECORD_RW_MASK)?"WR":"RD", lat);
+        if (lat_max < lat) lat_max = lat;
+        if (lat_min > lat) lat_min = lat;
+        lat_total += lat;
+    }
+    printf("lat max: %u, min %u, avg %f\n", lat_max, lat_min, (double)lat_total/RECORD_NUM);
     // Done
     for (i=0; i < NUM_BUF; ++i) {
         fpgaReleaseBuffer(accel_handle, wsid[i]);
