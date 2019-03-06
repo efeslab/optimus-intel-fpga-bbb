@@ -36,7 +36,7 @@
 #ifndef __FPGA_MPF_CONNECT_H__
 #define __FPGA_MPF_CONNECT_H__
 
-#include <vai/vai.h>
+#include <vai/fpga.h>
 #include <vai/mpf/csrs.h>
 
 #ifdef __cplusplus

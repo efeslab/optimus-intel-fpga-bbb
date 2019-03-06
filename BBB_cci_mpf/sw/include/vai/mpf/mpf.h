@@ -55,7 +55,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include <vai/vai.h>
+#include <vai/fpga.h>
 #include <vai/mpf/types.h>
 #include <vai/mpf/connect.h>
 #include <vai/mpf/csrs.h>

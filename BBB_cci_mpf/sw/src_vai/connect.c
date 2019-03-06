@@ -33,7 +33,7 @@
 #include <stdbool.h>
 #include <inttypes.h>
 
-#include <vai/vai.h>
+#include <vai/fpga.h>
 #include <vai/mpf/mpf.h>
 #include "mpf_internal.h"
 
