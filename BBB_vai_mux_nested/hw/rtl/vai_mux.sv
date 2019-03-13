@@ -1,6 +1,6 @@
 import ccip_if_pkg::*;
 `include "vendor_defines.vh"
-module vai_mux #(NUM_SUB_AFUS=15)
+module vai_mux #(NUM_SUB_AFUS=9)
 (
     input   wire                    pClk,
     input   wire                    pClkDiv2,
@@ -105,9 +105,9 @@ module vai_mux #(NUM_SUB_AFUS=15)
     end
 
     generate
-        if (NUM_SUB_AFUS == 16)
+        if (NUM_SUB_AFUS == 9)
         begin
-            nested_mux_16 inst_ccip_mux_nested(
+            nested_mux_9 inst_ccip_mux_nested(
                 .pClk(pClk),
                 .pClkDiv2(pClkDiv2),
                 .SoftReset(reset),
