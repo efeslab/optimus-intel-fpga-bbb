@@ -254,8 +254,8 @@ module vai_audit_rx2 # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
                     afu_RxPort[n].c1 <= t_if_ccip_c1_Rx'(0);
                 end
 
-                afu_RxPort[n].c0TxAlmFull = up_RxPort[n].c0TxAlmFull;
-                afu_RxPort[n].c1TxAlmFull = up_RxPort[n].c1TxAlmFull;
+                afu_RxPort[n].c0TxAlmFull <= up_RxPort[n].c0TxAlmFull;
+                afu_RxPort[n].c1TxAlmFull <= up_RxPort[n].c1TxAlmFull;
             end
         
         end
