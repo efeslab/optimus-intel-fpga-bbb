@@ -28,30 +28,44 @@ module vai_mux #(NUM_SUB_AFUS=15)
 
     /* forward Rx Port */
 
-    t_if_ccip_Rx legacy_afu_RxPort[NUM_SUB_AFUS:0];
-    t_if_ccip_Rx pre_afu_RxPort[NUM_SUB_AFUS-1:0];
     t_if_ccip_Tx up_TxPort_T0;
-    t_if_ccip_Rx mgr_RxPort;
-    logic [63:0] offset_array [NUM_SUB_AFUS-1:0];
+    t_if_ccip_Rx mgr2mux_RxPort;
+    t_if_ccip_Tx mux2mgr_TxPort;
+    t_if_ccip_Rx mux2adt_RxPort[NUM_SUB_AFUS-1:0];
+    t_if_ccip_Tx adt2mux_TxPort[NUM_SUB_AFUS-1:0];
 
-    vai_audit_rx #(
+    logic [63:0] offset_array [NUM_SUB_AFUS-1:0];
+    logic [63:0] offset_array_T1 [NUM_SUB_AFUS-1:0];
+    logic [63:0] afu_vai_reset;
+
+    // rx audit
+    vai_audit_rx2 #(
         .NUM_SUB_AFUS(NUM_SUB_AFUS)
     )
     inst_vai_audit_rx(
         .clk(pClk),
         .reset(reset),
-        .up_RxPort(legacy_afu_RxPort),
-        .afu_RxPort(pre_afu_RxPort),
-        .mgr_RxPort(mgr_RxPort)
+        .up_RxPort(mux2adt_RxPort),
+        .afu_RxPort(afu_RxPort)
         );
 
-    t_if_ccip_Tx mgr_TxPort;
-
-    logic [63:0] afu_vai_reset;
-    vai_mgr_afu #(
+    // tx audit
+    vai_audit_tx #(
         .NUM_SUB_AFUS(NUM_SUB_AFUS)
     )
-    inst_vai_mgr_afu(
+    inst_vai_audit_tx(
+        .clk(pClk),
+        .reset(reset),
+        .up_TxPort(adt2mux_TxPort),
+        .afu_TxPort(afu_TxPort),
+        .offset_array(offset_array_T1)
+        );
+
+    // mgr
+    vai_mgr #(
+        .NUM_SUB_AFUS(NUM_SUB_AFUS)
+    )
+    inst_vai_mgr(
         .pClk(pClk),
         .pClkDiv2(pClkDiv2),
         .pClkDiv4(),
@@ -60,47 +74,38 @@ module vai_mux #(NUM_SUB_AFUS=15)
         .pck_cp2af_softReset(reset),
         .pck_cp2af_pwrState(up_PwrState),
         .pck_cp2af_error(up_Error),
-        .pck_cp2af_sRx(mgr_RxPort),
-        .pck_af2cp_sTx(mgr_TxPort),
+        .pck_cp2af_sRx(up_RxPort),
+        .pck_af2cp_sTx(up_TxPort_T0),
+		.afu_RxPort(mgr2mux_RxPort),
+		.afu_TxPort(mux2mgr_TxPort), 
         .offset_array(offset_array),
         .sub_afu_reset(afu_vai_reset)
         );
-
-    logic afu_SoftReset_ext [NUM_SUB_AFUS:0];
-    logic [1:0] afu_PwrState_ext [NUM_SUB_AFUS:0];
-    logic afu_Error_ext [NUM_SUB_AFUS:0];
-    logic afu_SoftReset_reg [NUM_SUB_AFUS-1:0];
 
     always_ff @(posedge pClk)
     begin
         for (int i=0; i<NUM_SUB_AFUS; i++)
         begin
-            afu_SoftReset[i] <= afu_SoftReset_reg[i];
-            afu_SoftReset_reg[i] <= afu_vai_reset[i] | afu_SoftReset_ext[i];
-            afu_PwrState[i] <= afu_PwrState_ext[i];
-            afu_Error[i] <= afu_Error_ext[i];
+            offset_array_T1[i] <= offset_array[i];
         end
     end
 
-    /* audit Tx port for each afu */
 
-    t_if_ccip_Tx audit_TxPort[NUM_SUB_AFUS:0];
-    vai_audit_tx #(
-        .NUM_SUB_AFUS(NUM_SUB_AFUS)
-    )
-    inst_vai_audit_tx(
-        .clk(pClk),
-        .reset(reset),
-        .up_TxPort(audit_TxPort[NUM_SUB_AFUS-1:0]),
-        .afu_TxPort(afu_TxPort),
-        .offset_array(offset_array)
-        );
+    logic adt2afu_SoftReset [NUM_SUB_AFUS-1:0];
+    logic [1:0] afu_PwrState [NUM_SUB_AFUS-1:0];
+    logic afu_SoftReset_T0 [NUM_SUB_AFUS-1:0];
 
-    /* we utilize the legacy ccip_mux to send packet */
-    assign audit_TxPort[NUM_SUB_AFUS] = mgr_TxPort;
+    always_ff @(posedge pClk)
+    begin
+        for (int i=0; i<NUM_SUB_AFUS; i++)
+        begin
+            afu_SoftReset[i] <= afu_SoftReset_T0[i];
+            afu_SoftReset_T0[i] <= afu_vai_reset[i] | adt2afu_SoftReset[i];
+        end
+    end
 
     generate
-        if (NUM_SUB_AFUS == 15)
+        if (NUM_SUB_AFUS == 16)
         begin
             nested_mux_16 inst_ccip_mux_nested(
                 .pClk(pClk),
@@ -108,70 +113,19 @@ module vai_mux #(NUM_SUB_AFUS=15)
                 .SoftReset(reset),
                 .up_Error(up_Error),
                 .up_PwrState(up_PwrState),
-                .up_RxPort(up_RxPort), /* we only use this to count packets */
-                .up_TxPort(up_TxPort_T0),
-                .afu_SoftReset(afu_SoftReset_ext),
-                .afu_PwrState(afu_PwrState_ext),
-                .afu_Error(afu_Error_ext),
-                .afu_RxPort(legacy_afu_RxPort),
-                .afu_TxPort(audit_TxPort)
-                );
-        end
-        else if (NUM_SUB_AFUS == 11)
-        begin
-            nested_mux_12 inst_ccip_mux_nested(
-                .pClk(pClk),
-                .pClkDiv2(pClkDiv2),
-                .SoftReset(reset),
-                .up_Error(up_Error),
-                .up_PwrState(up_PwrState),
-                .up_RxPort(up_RxPort), /* we only use this to count packets */
-                .up_TxPort(up_TxPort_T0),
-                .afu_SoftReset(afu_SoftReset_ext),
-                .afu_PwrState(afu_PwrState_ext),
-                .afu_Error(afu_Error_ext),
-                .afu_RxPort(legacy_afu_RxPort),
-                .afu_TxPort(audit_TxPort)
-                );
-        end
-        else if (NUM_SUB_AFUS == 8)
-        begin
-            nested_mux_9 inst_ccip_mux_nested(
-                .pClk(pClk),
-                .pClkDiv2(pClkDiv2),
-                .SoftReset(reset),
-                .up_Error(up_Error),
-                .up_PwrState(up_PwrState),
-                .up_RxPort(up_RxPort), /* we only use this to count packets */
-                .up_TxPort(up_TxPort_T0),
-                .afu_SoftReset(afu_SoftReset_ext),
-                .afu_PwrState(afu_PwrState_ext),
-                .afu_Error(afu_Error_ext),
-                .afu_RxPort(legacy_afu_RxPort),
-                .afu_TxPort(audit_TxPort)
-                );
-        end
-        else if (NUM_SUB_AFUS == 5)
-        begin
-            nested_mux_6 inst_ccip_mux_nested(
-                .pClk(pClk),
-                .pClkDiv2(pClkDiv2),
-                .SoftReset(reset),
-                .up_Error(up_Error),
-                .up_PwrState(up_PwrState),
-                .up_RxPort(up_RxPort), /* we only use this to count packets */
-                .up_TxPort(up_TxPort_T0),
-                .afu_SoftReset(afu_SoftReset_ext),
-                .afu_PwrState(afu_PwrState_ext),
-                .afu_Error(afu_Error_ext),
-                .afu_RxPort(legacy_afu_RxPort),
-                .afu_TxPort(audit_TxPort)
+                .up_RxPort(mgr2mux_RxPort), /* we only use this to count packets */
+                .up_TxPort(mux2mgr_TxPort),
+                .afu_SoftReset(adt2afu_SoftReset),
+                .afu_PwrState(afu_PwrState),
+                .afu_Error(afu_Error),
+                .afu_RxPort(mux2adt_RxPort),
+                .afu_TxPort(adt2mux_TxPort)
                 );
         end
         else
         begin
             ccip_mux_legacy #(
-                .NUM_SUB_AFUS(NUM_SUB_AFUS+1),
+                .NUM_SUB_AFUS(NUM_SUB_AFUS),
                 .NUM_PIPE_STAGES(1)
             )
             inst_ccip_mux(
@@ -180,27 +134,14 @@ module vai_mux #(NUM_SUB_AFUS=15)
                 .SoftReset(reset),
                 .up_Error(up_Error),
                 .up_PwrState(up_PwrState),
-                .up_RxPort(up_RxPort), /* we only use this to count packets */
-                .up_TxPort(up_TxPort_T0),
-                .afu_SoftReset(afu_SoftReset_ext),
-                .afu_PwrState(afu_PwrState_ext),
-                .afu_Error(afu_Error_ext),
-                .afu_RxPort(legacy_afu_RxPort),
-                .afu_TxPort(audit_TxPort)
+                .up_RxPort(mgr2mux_RxPort), /* we only use this to count packets */
+                .up_TxPort(mux2mgr_TxPort),
+                .afu_SoftReset(adt2afu_SoftReset),
+                .afu_PwrState(afu_PwrState),
+                .afu_Error(afu_Error),
+                .afu_RxPort(mux2adt_RxPort),
+                .afu_TxPort(adt2mux_TxPort)
                 );
-        end
-    endgenerate
-
-    generate
-        genvar n;
-        for (n=0; n<NUM_SUB_AFUS; n++)
-        begin
-            always_comb
-            begin
-                afu_RxPort[n] = pre_afu_RxPort[n]; /* c0 & c1 */
-                afu_RxPort[n].c0TxAlmFull = legacy_afu_RxPort[n].c0TxAlmFull;
-                afu_RxPort[n].c1TxAlmFull = legacy_afu_RxPort[n].c1TxAlmFull;
-            end
         end
     endgenerate
 

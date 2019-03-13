@@ -14,3 +14,5 @@
 ../rtl/vai_audit_rx.sv
 ../rtl/vai_mgr_afu.sv
 ../rtl/ccip_legacy_mux_nested.sv
+../rtl/vai_audit_rx2.sv
+../rtl/vai_mgr.sv
