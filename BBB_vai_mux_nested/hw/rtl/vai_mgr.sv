@@ -126,7 +126,6 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
     /* T3: assign value */
     logic [2:0] user_clk_array [NUM_SUB_AFUS-1:0];
     t_if_ccip_c2_Tx T3_Tx_c2;
-	t_if_ccip_Rx T3_Rx_temp;
 	logic T3_is_ctl_mmio;
 	logic T3_is_read;
     logic [127:0] mgr_id;
@@ -144,14 +143,12 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
 
             T3_Tx_c2 <= 0;
             sub_afu_reset <= 0;
-            T3_Rx_temp <= 0;
             T3_is_ctl_mmio <= 0;
             T3_is_read <= 0;
         end
         else
         begin
         	T3_is_ctl_mmio <= T2_is_ctl_mmio;
-            T3_Rx_temp <= T2_Rx_temp;
             if (T2_is_write && T2_is_ctl_mmio)
             begin
                 if (T2_is_offset)
@@ -209,7 +206,7 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
         end
     end
 	
-    /* T4: output */
+    /* T4 (T2): output */
     /* we do not support read and write from mgr_afu */
 
     logic fifo_c0tx_rdack, fifo_c0tx_dout_v, fifo_c0tx_full, fifo_c0tx_almFull;
@@ -228,26 +225,14 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
         end
         else
         begin
-        	if (!T3_is_ctl_mmio)
-        	begin
-        		afu_RxPort.c0 <= T3_Rx_temp.c0;
-        		afu_RxPort.c1 <= T3_Rx_temp.c1;
-        		afu_RxPort.c0TxAlmFull <= fifo_c0tx_almFull;
-        		afu_RxPort.c1TxAlmFull <= fifo_c1tx_almFull;
-        		
-        	end
+        	if (!T2_is_ctl_mmio)
+        		afu_RxPort.c0 <= T2_Rx_temp.c0;
         	else
-        	begin
         		afu_RxPort.c0 <= 0;
-        		afu_RxPort.c1 <= T3_Rx_temp.c1;
-        		afu_RxPort.c0TxAlmFull <= fifo_c0tx_almFull;
-        		afu_RxPort.c1TxAlmFull <= fifo_c1tx_almFull;
-        	end 
-        	
-        	
-        	
 
-            //pck_af2cp_sTx.c2 <= T3_Tx_c2;
+            afu_RxPort.c1 <= T2_Rx_temp.c1;
+            afu_RxPort.c0TxAlmFull <= fifo_c0tx_almFull;
+            afu_RxPort.c1TxAlmFull <= fifo_c1tx_almFull;
         end
     end
     
