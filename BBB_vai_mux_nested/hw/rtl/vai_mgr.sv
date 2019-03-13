@@ -244,9 +244,9 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
 	sync_C1Tx_fifo #(
 		.DATA_WIDTH($bits(t_if_ccip_c0_Tx)),
 		.CTL_WIDTH(0),
-		.DEPTH_BASE2($clog2(64)),
+		.DEPTH_BASE2($clog2(24)),
 		.GRAM_MODE(3),
-		.FULL_THRESH(64-12)
+		.FULL_THRESH(24-12)
 	)
 	inst_fifo_c0tx(
 		.Resetb(reset_r),
@@ -283,9 +283,9 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
 	sync_C1Tx_fifo #(
 		.DATA_WIDTH($bits(t_if_ccip_c1_Tx)),
 		.CTL_WIDTH(0),
-		.DEPTH_BASE2($clog2(64)),
+		.DEPTH_BASE2($clog2(24)),
 		.GRAM_MODE(3),
-		.FULL_THRESH(64-12)
+		.FULL_THRESH(24-12)
 	)
 	inst_fifo_c1tx(
 		.Resetb(reset_r),
@@ -322,9 +322,9 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
 	sync_C1Tx_fifo #(
 		.DATA_WIDTH($bits(t_if_ccip_c2_Tx)),
 		.CTL_WIDTH(0),
-		.DEPTH_BASE2($clog2(64)),
+		.DEPTH_BASE2($clog2(24)),
 		.GRAM_MODE(3),
-		.FULL_THRESH(64-12)
+		.FULL_THRESH(24-12)
 	)
 	inst_fifo_c2tx(
 		.Resetb(reset_r),
