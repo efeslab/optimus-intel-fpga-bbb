@@ -231,90 +231,14 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
         		afu_RxPort.c0 <= 0;
 
             afu_RxPort.c1 <= T2_Rx_temp.c1;
-            afu_RxPort.c0TxAlmFull <= fifo_c0tx_almFull;
-            afu_RxPort.c1TxAlmFull <= fifo_c1tx_almFull;
         end
     end
     
     
-    //handle c0tx
-    
-    logic c0tx_is_ok, c0tx_is_ok_T1, c0tx_is_ok_T2;
-    assign c0tx_is_ok = fifo_c0tx_dout_v && (!pck_cp2af_sRx.c0TxAlmFull);
-	sync_C1Tx_fifo #(
-		.DATA_WIDTH($bits(t_if_ccip_c0_Tx)),
-		.CTL_WIDTH(0),
-		.DEPTH_BASE2($clog2(24)),
-		.GRAM_MODE(3),
-		.FULL_THRESH(24-12)
-	)
-	inst_fifo_c0tx(
-		.Resetb(reset_r),
-		.Clk(clk),
-		.fifo_din(afu_TxPort.c0),
-		.fifo_ctlin(),
-		.fifo_wen(afu_TxPort.c0.valid),
-		.fifo_rdack(fifo_c0tx_rdack),
-		.T2_fifo_dout(fifo_c0tx_dout),
-		.T0_fifo_ctlout(),
-		.T0_fifo_dout_v(fifo_c0tx_dout_v),
-		.T0_fifo_empty(fifo_c0tx_empty),
-		.T0_fifo_full(fifo_c0tx_full),
-		.T0_fifo_count(),
-		.T0_fifo_almFull(fifo_c0tx_almFull),
-		.T0_fifo_underflow(),
-		.T0_fifo_overflow()
-		);
-    assign fifo_c0tx_rdack = c0tx_is_ok;
-    always_ff @(posedge clk)
-    begin
-    	if (c0tx_is_ok_T2) 
-    		pck_af2cp_sTx.c0 <= fifo_c0tx_dout;
-        else
-            pck_af2cp_sTx.c0.valid <= 0;
-
-        c0tx_is_ok_T2 <= c0tx_is_ok_T1;
-        c0tx_is_ok_T1 <= c0tx_is_ok;
-    end
-    
-    //handle c1tx
-    logic c1tx_is_ok, c1tx_is_ok_T1, c1tx_is_ok_T2;
-    assign c1tx_is_ok = fifo_c1tx_dout_v && (!pck_cp2af_sRx.c1TxAlmFull);
-	sync_C1Tx_fifo #(
-		.DATA_WIDTH($bits(t_if_ccip_c1_Tx)),
-		.CTL_WIDTH(0),
-		.DEPTH_BASE2($clog2(24)),
-		.GRAM_MODE(3),
-		.FULL_THRESH(24-12)
-	)
-	inst_fifo_c1tx(
-		.Resetb(reset_r),
-		.Clk(clk),
-		.fifo_din(afu_TxPort.c1),
-		.fifo_ctlin(),
-		.fifo_wen(afu_TxPort.c1.valid),
-		.fifo_rdack(fifo_c1tx_rdack),
-		.T2_fifo_dout(fifo_c1tx_dout),
-		.T0_fifo_ctlout(),
-		.T0_fifo_dout_v(fifo_c1tx_dout_v),
-		.T0_fifo_empty(fifo_c1tx_empty),
-		.T0_fifo_full(fifo_c1tx_full),
-		.T0_fifo_count(),
-		.T0_fifo_almFull(fifo_c1tx_almFull),
-		.T0_fifo_underflow(),
-		.T0_fifo_overflow()
-		);
-    assign fifo_c1tx_rdack = c1tx_is_ok;
-	always_ff @(posedge clk)
-    begin
-    	if (c1tx_is_ok_T2) 
-    		pck_af2cp_sTx.c1 <= fifo_c1tx_dout;
-        else
-            pck_af2cp_sTx.c1.valid <= 0;
-
-        c1tx_is_ok_T2 <= c1tx_is_ok_T1;
-        c1tx_is_ok_T1 <= c1tx_is_ok;
-    end
+    assign afu_RxPort.c0TxAlmFull = pck_cp2af_sRx.c0TxAlmFull;
+    assign afu_RxPort.c1TxAlmFull = pck_cp2af_sRx.c1TxAlmFull;
+    assign pck_af2cp_sTx.c0 = afu_TxPort.c0;
+    assign pck_af2cp_sTx.c1 = afu_TxPort.c1;
     
 	logic fifo_c2tx_rdack, fifo_c2tx_dout_v, fifo_c2tx_full, fifo_c2tx_almFull;
     t_if_ccip_c2_Tx fifo_c2tx_dout;
