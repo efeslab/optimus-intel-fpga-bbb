@@ -115,7 +115,7 @@ static volatile void* alloc_buffer(fpga_handle accel_handle,
     return buf;
 }
 
-#define NUM_BUF 2
+typedef enum {DATABUF=0,STATBUF,NUM_BUF} buf_t;
 int main(int argc, char *argv[])
 {
     fpga_handle accel_handle;
@@ -174,27 +174,31 @@ found_prop:
     uint64_t wsid[NUM_BUF];
     size_t buf_size = num_pages * getpagesize();
     uint64_t len_mask = (buf_size/CL(1)) - 1; // access unit in AFU is cache line
-    size_t alloc_size[] = {buf_size, getpagesize()};
+    size_t alloc_size[NUM_BUF]; {
+        alloc_size[DATABUF] = buf_size;
+        alloc_size[STATBUF] = getpagesize();
+    }
     accel_handle = connect_to_accel(AFU_ACCEL_UUID);
-    // Allocate a single page memory buffer
     size_t i = 0;
     for (i=0; i < NUM_BUF; ++i) {
         buf[i] = alloc_buffer(accel_handle, alloc_size[i], &wsid[i], &buf_pa[i]);
         assert(NULL != buf[i]);
     }
-    volatile struct status_cl *status_buf = (struct status_cl *) buf[1];
-    volatile report_t *report_buf = (report_t *)(buf[1] + CL(1));
+    // clean status buf and report buf
+    memset(buf[STATBUF], 0, alloc_size[STATBUF]);
+    volatile struct status_cl *status_buf = (struct status_cl *) buf[STATBUF];
+    volatile report_t *report_buf = (report_t *)(buf[STATBUF] + CL(1));
 
     // reset to uncompleted
     status_buf->completion = 0;
     // Tell the accelerator the address of the buffer using cache line
     // addresses.  The accelerator will respond by writing to the buffer.
-    assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_REPORT_ADDR, buf_pa[1]/CL(1)) == FPGA_OK &&
+    assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_REPORT_ADDR, buf_pa[STATBUF]/CL(1)) == FPGA_OK &&
             "Write Status Addr failed");
-    printf("status addr is %lX\n", buf_pa[1]);
-    assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_MEM_BASE, buf_pa[0]/CL(1)) == FPGA_OK &&
+    printf("status addr is %lX\n", buf_pa[STATBUF]);
+    assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_MEM_BASE, buf_pa[DATABUF]/CL(1)) == FPGA_OK &&
             "Write MEM BASE failed");
-    printf("MEM BASE is %lX\n", buf_pa[0]);
+    printf("MEM BASE is %lX\n", buf_pa[DATABUF]);
     assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_LEN_MASK, len_mask) == FPGA_OK &&
             "Write LEN MASK failed");
     printf("%zu Cache lines , buf_size is %zu, len mask %lx\n", buf_size/CL(1), buf_size, len_mask);
