@@ -53,7 +53,7 @@ end
 
 genvar n, m;
 generate
-    for (n=0; n < DUP_NUM; ++n) begin
+    for (n=0; n < DUP_NUM; ++n) begin: gen_init_stateQ
         for (m=0; m < N_STATES; ++m) begin
             assign init_stateQ[n][m] = init_state[m] ^ n ^ m;
     end
