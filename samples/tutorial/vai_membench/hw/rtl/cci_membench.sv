@@ -159,10 +159,12 @@ module ccip_std_afu
     localparam DEFAULT_RAND_SEED_0 = 64'h812765dd017492a3;
     localparam DEFAULT_RAND_SEED_1 = 64'hdb2042bc38c704e3;
     localparam DEFAULT_RAND_SEED_2 = 64'h39e8e59c761c69c6;
+    localparam RECFILTER_WIDTH = 10;
+    localparam PAGE_IDX_WIDTH = 6;
     t_ccip_clAddr base_addr, report_addr, status_addr;
     assign report_addr = (status_addr + 1);
     logic [31:0] len_mask;
-    logic [25:0] rec_filter;
+    logic [RECFILTER_WIDTH - 1:0] rec_filter;
     logic [63:0] clk_cnt;
     logic [63:0] read_cnt,  read_total;
     logic [63:0] write_cnt, write_total;
@@ -173,7 +175,6 @@ module ccip_std_afu
     assign csr_properties = {write_hint[3:0], read_hint[3:0], write_vc[1:0], read_vc[1:0]};
 
     logic [63:0] rand_seed [0:2];
-    logic [31:0] random32;
     logic random_valid;
 
     localparam CSR_TS_IDLE = 2'h0;
@@ -221,7 +222,6 @@ module ccip_std_afu
                     sTx.c2.data[63:60] <= 4'h1;
                     // End of list (last entry in list)
                     sTx.c2.data[40] <= 1'b1;
-                    sTx.c2.data[11:0] <= `AFU_IMAGE_VAI_MAGIC;
                 end
 
                 // AFU_ID_L
@@ -380,23 +380,25 @@ module ccip_std_afu
 
     // rw_priority: 0 means read first, 1 means write first
     logic rw_priority;
-    assign read_done = (read_cnt >= read_total);
-    assign write_done = (write_cnt >= write_total);
+    always_ff @(posedge clk) begin
+        read_done <= (read_cnt >= read_total);
+        write_done <= (write_cnt >= write_total);
+    end
+    //assign read_done = (read_cnt >= read_total);
+    //assign write_done = (write_cnt >= write_total);
     assign can_read = (!sRx.c0TxAlmFull) && (!read_done);
     assign can_write = (!sRx.c1TxAlmFull) && (!write_done);
     assign do_read = random_valid && can_read && !(can_write && rw_priority);
     assign do_write = random_valid && can_write && !(can_read && !rw_priority);
     t_ccip_clAddr next_addr;
     logic [31:0] random_offset;
-    assign random_offset = (random32 & len_mask);
-    assign next_addr = base_addr + random_offset;
     always_ff @(posedge clk)
     begin
         if (reset) begin rw_priority <= 1'b0; end
         else begin rw_priority <= rw_priority? !do_write: do_read; end
     end
     // record latenct per request
-    localparam RECORD_NUM = 128;
+    localparam RECORD_NUM = 64;
     localparam RECORD_WIDTH = 16;
     localparam REPORT_UNIT = (CCIP_CLDATA_WIDTH/RECORD_WIDTH);
     initial begin
@@ -404,14 +406,18 @@ module ccip_std_afu
         else
             $error("RECORD_NUM %d should divide REPORT_UNIT %d", RECORD_NUM, REPORT_UNIT);
     end
-    logic [RECORD_WIDTH-1:0] latbgn [RECORD_NUM - 1 : 0];
-    logic [RECORD_WIDTH-1:0] latrec [RECORD_NUM - 1 : 0];
+(* ramstyle = "logic" *) reg [RECORD_WIDTH-1:0] latbgn [RECORD_NUM - 1 : 0];
+(* ramstyle = "logic" *) reg [RECORD_WIDTH-1:0] latrec [RECORD_NUM - 1 : 0];
     logic [$clog2(RECORD_NUM):0] reccnt, report_reccnt, c0Rx_reccnt, c1Rx_reccnt;
     logic should_rec;
-    assign should_rec = (random_offset[31:6] == rec_filter) && (reccnt != RECORD_NUM);
+    assign should_rec = (random_offset[RECFILTER_WIDTH+PAGE_IDX_WIDTH-1:PAGE_IDX_WIDTH] == rec_filter) && (reccnt != RECORD_NUM);
     assign c0Rx_reccnt = sRx.c0.hdr.mdata[$clog2(RECORD_NUM):0];
     assign c1Rx_reccnt = sRx.c1.hdr.mdata[$clog2(RECORD_NUM):0];
     assign report_done = (report_reccnt == reccnt);
+    // queue for timing
+    logic should_rec_Q;
+    logic [$clog2(RECORD_NUM):0] reccnt_Q;
+    logic [RECORD_WIDTH-1:0] latbgn_Q;
     /*
      * send memory read and write requests
      */
@@ -420,13 +426,14 @@ module ccip_std_afu
         if (reset)
         begin
             sTx.c0.valid <= 1'b0;
-            sTx.c0.hdr <= t_ccip_c0_ReqMemHdr'(0);
             reccnt <= 0;
             sTx.c1.valid <= 1'b0;
-            sTx.c1.hdr <= t_ccip_c1_ReqMemHdr'(0);
-            sTx.c1.data <= 0;
             report_reccnt <= 0;
-            finish_done <= 0;
+            should_rec_Q <= 0;
+        end
+        if (should_rec_Q) begin
+            should_rec_Q <= 0;
+            latbgn[reccnt_Q] <= latbgn_Q;
         end
         case (state)
             STATE_RUN: begin
@@ -438,7 +445,9 @@ module ccip_std_afu
                     sTx.c0.hdr.address <= next_addr;
                     if (should_rec) begin
                         sTx.c0.hdr.mdata <= reccnt;
-                        latbgn[reccnt] <= clk_cnt[RECORD_WIDTH-1:0];
+                        should_rec_Q <= 1;
+                        reccnt_Q <= reccnt;
+                        latbgn_Q <= clk_cnt[RECORD_WIDTH-1:0];
                         reccnt <= reccnt + 1;
                     end
                     else begin
@@ -459,7 +468,9 @@ module ccip_std_afu
                     sTx.c1.data <= random_offset;
                     if (should_rec) begin
                         sTx.c1.hdr.mdata <= reccnt;
-                        latbgn[reccnt] <= clk_cnt[RECORD_WIDTH-1:0];
+                        should_rec_Q <= 1;
+                        reccnt_Q <= reccnt;
+                        latbgn_Q <= clk_cnt[RECORD_WIDTH-1:0];
                         reccnt <= reccnt + 1;
                     end
                     else begin
@@ -501,8 +512,10 @@ module ccip_std_afu
                     sTx.c1.data[511:128] <= 0;
                     finish_done <= 1;
                 end
-                else
+                else begin
                     sTx.c1.valid <= 1'b0;
+                    finish_done <= 0;
+                end
             end
             default: begin
                 sTx.c0.valid <= 1'b0;
@@ -513,6 +526,10 @@ module ccip_std_afu
     /*
      * handle memory read and write response
      */
+    logic [$clog2(RECORD_NUM):0] c0Rx_reccnt_Q, c0Rx_reccnt_QQ, c0Rx_reccnt_QQQ, c1Rx_reccnt_Q, c1Rx_reccnt_QQ, c1Rx_reccnt_QQQ;
+    logic rdrsp_stage2, rdrsp_stage3, rdrsp_stage4;
+    logic wrrsp_stage2, wrrsp_stage3, wrrsp_stage4;
+    logic [RECORD_WIDTH-1:0] rdlat, wrlat, rdlatbgn, wrlatbgn;
     always_ff @(posedge clk)
     begin
         if (reset)
@@ -525,18 +542,72 @@ module ccip_std_afu
             write_cnt <= write_cnt + 1;
             if (c1Rx_reccnt != RECORD_NUM)
             begin
-                latrec[c1Rx_reccnt][RECORD_WIDTH-2:0] <= clk_cnt[RECORD_WIDTH-1:0] - latbgn[c1Rx_reccnt];
-                latrec[c1Rx_reccnt][RECORD_WIDTH-1] <= 1'b1; // last bit == 0: write request
+                wrrsp_stage2 <= 1;
+                c1Rx_reccnt_Q <= c1Rx_reccnt;
             end
+            else
+            begin
+                wrrsp_stage2 <= 0;
+            end
+        end
+        if (wrrsp_stage2) begin
+            wrlatbgn <= latbgn[c1Rx_reccnt_Q];
+            c1Rx_reccnt_QQ <= c1Rx_reccnt_Q;
+            wrrsp_stage3 <= 1;
+        end
+        else begin
+            wrrsp_stage3 <= 0;
+        end
+        if (wrrsp_stage3) begin
+            wrlat <= clk_cnt[RECORD_WIDTH-1:0] - wrlatbgn;
+            c1Rx_reccnt_QQQ <= c1Rx_reccnt_QQ;
+            wrrsp_stage4 <= 1;
+        end
+        else
+        begin
+            wrrsp_stage4 <= 0;
+        end
+        if (wrrsp_stage4) begin
+            latrec[c1Rx_reccnt_QQQ][RECORD_WIDTH-2:0] <= wrlat;
+            latrec[c1Rx_reccnt_QQQ][RECORD_WIDTH-1] <= 1'b1; // last bit == 0: write request
         end
         if (sRx.c0.rspValid == 1'b1)
         begin
             read_cnt <= read_cnt + 1;
             if (c0Rx_reccnt != RECORD_NUM)
             begin
-                latrec[c0Rx_reccnt][RECORD_WIDTH-2:0] <= clk_cnt[RECORD_WIDTH-1:0] - latbgn[c0Rx_reccnt]; // intended overflow here
-                latrec[c0Rx_reccnt][RECORD_WIDTH-1] <= 1'b0; // last bit == 0: read request
+                rdrsp_stage2 <= 1;
+                c0Rx_reccnt_Q <= c0Rx_reccnt;
             end
+            else
+            begin
+                rdrsp_stage2 <= 0;
+            end
+        end
+        else
+        begin
+            rdrsp_stage2 <= 0;
+        end
+        if (rdrsp_stage2) begin
+            rdlatbgn <= latbgn[c0Rx_reccnt_Q]; // intended overflow here
+            c0Rx_reccnt_QQ <= c0Rx_reccnt_Q;
+            rdrsp_stage3 <= 1;
+        end
+        else begin
+            rdrsp_stage3 <= 0;
+        end
+        if (rdrsp_stage3) begin
+            rdlat <= clk_cnt[RECORD_WIDTH-1:0] - rdlatbgn;
+            c0Rx_reccnt_QQQ <= c0Rx_reccnt_QQ;
+            rdrsp_stage4 <= 1;
+        end
+        else
+        begin
+            rdrsp_stage4 <= 0;
+        end
+        if (rdrsp_stage4) begin
+            latrec[c0Rx_reccnt_QQQ][RECORD_WIDTH-2:0] <= rdlat;
+            latrec[c0Rx_reccnt_QQQ][RECORD_WIDTH-1] <= 1'b0; // last bit == 0: read request
         end
     end
     /*
@@ -549,11 +620,18 @@ module ccip_std_afu
     assign init_state[2] = rand_seed[1][31:0];
     assign init_state[3] = rand_seed[1][63:32];
     assign init_state[4] = rand_seed[2][31:0];
+    logic [31:0] random32_Q;
+    logic random_valid_Q;
     xorwow #(.WIDTH(32)) xw(
         .clk(clk),
         .reset(xor_reset),
         .init_state(init_state),
-        .random(random32),
-        .valid(random_valid)
+        .random(random32_Q),
+        .valid(random_valid_Q)
     );
+    always_ff @(posedge clk) begin
+        random_offset <= random32_Q & len_mask;
+        next_addr <= base_addr + (random32_Q & len_mask);
+        random_valid <= random_valid_Q;
+    end
 endmodule

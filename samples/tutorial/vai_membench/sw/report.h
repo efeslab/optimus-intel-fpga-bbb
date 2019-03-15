@@ -93,7 +93,7 @@ struct status_cl {
     uint32_t n_read;
     uint32_t n_write;
 };
-#define RECORD_NUM 128
+#define RECORD_NUM 64
 #define RECORD_WIDTH 16
 #define RECORD_RW_MASK 0x8000
 #define RECORD_LAT_MASK 0x7fff
