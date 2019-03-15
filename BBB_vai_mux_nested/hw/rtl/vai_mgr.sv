@@ -37,8 +37,10 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
     end
 
     /* T0: connect to ccip */
-    t_if_ccip_Rx T0_Rx;
-    assign T0_Rx = pck_cp2af_sRx;
+    t_if_ccip_Rx sRx;
+    t_if_ccip_Tx sTx;
+    assign sRx = pck_cp2af_sRx;
+    assign pck_af2cp_sTx = sTx;
 
 
     /* T1: register */
@@ -47,6 +49,8 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
     logic T1_is_mmio_read;
     logic T1_is_mmio_write;
     t_if_ccip_Rx T1_Rx_temp;
+
+    logic c0tx_buf_almfull, c1tx_buf_almfull;
 
     always_ff @(posedge clk)
     begin
@@ -60,13 +64,24 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
         end
         else
         begin
-            T1_mmio_data <= T0_Rx.c0.data;
-            T1_mmio_req_hdr <= T0_Rx.c0.hdr;
-            T1_is_mmio_read <= T0_Rx.c0.mmioRdValid;
-            T1_is_mmio_write <= T0_Rx.c0.mmioWrValid;
-            T1_Rx_temp <= T0_Rx;
+            T1_mmio_data <= sRx.c0.data;
+            T1_mmio_req_hdr <= sRx.c0.hdr;
+            T1_is_mmio_read <= sRx.c0.mmioRdValid;
+            T1_is_mmio_write <= sRx.c0.mmioWrValid;
+            T1_Rx_temp <= sRx;
         end
     end
+
+    /* T1: output */
+    /* we do not support read and write from mgr_afu */
+    always_ff @(posedge clk)
+    begin
+        afu_RxPort.c0 <= T1_Rx_temp.c0;
+        afu_RxPort.c1 <= T1_Rx_temp.c1;
+    end
+
+    assign afu_RxPort.c0TxAlmFull = sRx.c0TxAlmFull | c0tx_buf_almfull;
+    assign afu_RxPort.c1TxAlmFull = sRx.c1TxAlmFull | c0tx_buf_almfull;
 
 
     /* T2: decode */
@@ -82,7 +97,7 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
     logic T2_is_read;
     logic T2_is_write;
     logic T2_is_ctl_mmio;
-	t_if_ccip_Rx T2_Rx_temp;
+	//t_if_ccip_Rx T2_Rx_temp;
 	
     always_ff @(posedge clk)
     begin
@@ -99,12 +114,12 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
             T2_is_id_lo <= 0;
             T2_is_id_hi <= 0;
             T2_is_nafus <= 0;
-            T2_Rx_temp <= 0;
+            //T2_Rx_temp <= 0;
         end
         else
         begin
         	T2_is_ctl_mmio <= (T1_mmio_req_hdr.address[CCIP_MMIOADDR_WIDTH-1:10] == 0);
-        	T2_Rx_temp <= T1_Rx_temp;
+        	//T2_Rx_temp <= T1_Rx_temp;
             T2_vmid <= (T1_mmio_req_hdr.address[7:1] - 6);
             T2_data[63:0] <= T1_mmio_data;
             T2_tid <= T1_mmio_req_hdr.tid;
@@ -205,40 +220,88 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
             T3_is_read <= T2_is_read;
         end
     end
-	
-    /* T4 (T2): output */
-    /* we do not support read and write from mgr_afu */
 
-    logic fifo_c0tx_rdack, fifo_c0tx_dout_v, fifo_c0tx_full, fifo_c0tx_almFull;
-    t_if_ccip_c0_Tx fifo_c0tx_dout;
-	logic fifo_c1tx_rdack, fifo_c1tx_dout_v, fifo_c1tx_full, fifo_c1tx_almFull;
-    t_if_ccip_c1_Tx fifo_c1tx_dout;
+    localparam TX_BUF_SIZE = 2;
+    localparam LOG_TX_BUF_SIZE = $clog2(TX_BUF_SIZE);
+    (* ramstyle = "logic" *) t_if_ccip_c0_Tx c0tx_buf [TX_BUF_SIZE-1:0];
+    (* ramstyle = "logic" *) t_if_ccip_c1_Tx c1tx_buf [TX_BUF_SIZE-1:0];
+    logic [2:0] c0tx_buf_cnt, c1tx_buf_cnt;
+    logic [2:0] c0tx_buf_cnt2, c1tx_buf_cnt2;
+    logic [4:0] c0tx_balance, c1tx_balance;
 
     always_ff @(posedge clk)
     begin
         if (reset)
         begin
-            afu_RxPort.c0.mmioRdValid <= 0;
-            afu_RxPort.c0.mmioWrValid <= 0;
-            afu_RxPort.c0.rspValid <= 0;
-            afu_RxPort.c1.rspValid <= 0;
+            sTx.c0.valid <= 0;
+            sTx.c1.valid <= 0;
+            c0tx_buf_cnt <= 0;
+            c0tx_buf_cnt2 <= 0;
+            c1tx_buf_cnt <= 0;
+            c1tx_buf_cnt2 <= 0;
         end
         else
         begin
-        	if (!T2_is_ctl_mmio)
-        		afu_RxPort.c0 <= T2_Rx_temp.c0;
-        	else
-        		afu_RxPort.c0 <= 0;
+            if (~sRx.c0TxAlmFull)
+                c0tx_balance <= 0;
+            else if (afu_TxPort.c0.valid)
+                c0tx_balance <= c0tx_balance + 1;
+            else
+                c0tx_balance <= c0tx_balance;
 
-            afu_RxPort.c1 <= T2_Rx_temp.c1;
+            if (~sRx.c1TxAlmFull)
+                c1tx_balance <= 0;
+            else if (afu_TxPort.c1.valid)
+                c1tx_balance <= c1tx_balance + 1;
+            else
+                c1tx_balance <= c1tx_balance;
+
+            if (c0tx_balance >= 5 && afu_TxPort.c0.valid)
+            begin
+                c0tx_buf[c0tx_buf_cnt] <= afu_TxPort.c0;
+                c0tx_buf_cnt <= c0tx_buf_cnt + 1;
+                c0tx_buf_cnt2 <= c0tx_buf_cnt + 1;
+                sTx.c0.valid <= 0;
+
+                if (c0tx_buf_cnt == TX_BUF_SIZE)
+                begin
+                    $display("%m \m ERROR: c0tx side buffer overflow detected");
+                    $finish();
+                end
+            end
+            else if (~sRx.c0TxAlmFull && c0tx_buf_cnt != 0)
+            begin
+                sTx.c0 <= c0tx_buf[c0tx_buf_cnt2-c0tx_buf_cnt];
+                c0tx_buf_cnt <= c0tx_buf_cnt - 1;
+            end
+            else
+                sTx.c0 <= afu_TxPort.c0;
+
+            if (c1tx_balance >= 5 && afu_TxPort.c1.valid)
+            begin
+                c1tx_buf[c1tx_buf_cnt] <= afu_TxPort.c1;
+                c1tx_buf_cnt <= c1tx_buf_cnt + 1;
+                c1tx_buf_cnt2 <= c1tx_buf_cnt + 1;
+                sTx.c1.valid <= 0;
+
+                if (c1tx_buf_cnt == TX_BUF_SIZE)
+                begin
+                    $display("%m \m ERROR: c1tx side buffer overflow detected");
+                    $finish();
+                end
+            end
+            else if (~sRx.c1TxAlmFull && c1tx_buf_cnt != 0)
+            begin
+                sTx.c1 <= c1tx_buf[c1tx_buf_cnt2-c1tx_buf_cnt];
+                c1tx_buf_cnt <= c1tx_buf_cnt - 1;
+            end
+            else
+                sTx.c1 <= afu_TxPort.c1;
+
+            c0tx_buf_almfull <= (c0tx_buf_cnt!=0);
+            c1tx_buf_almfull <= (c1tx_buf_cnt!=0);
         end
     end
-    
-    
-    assign afu_RxPort.c0TxAlmFull = pck_cp2af_sRx.c0TxAlmFull;
-    assign afu_RxPort.c1TxAlmFull = pck_cp2af_sRx.c1TxAlmFull;
-    assign pck_af2cp_sTx.c0 = afu_TxPort.c0;
-    assign pck_af2cp_sTx.c1 = afu_TxPort.c1;
     
 	logic fifo_c2tx_rdack, fifo_c2tx_dout_v, fifo_c2tx_full, fifo_c2tx_almFull;
     t_if_ccip_c2_Tx fifo_c2tx_dout;
@@ -246,9 +309,9 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
 	sync_C1Tx_fifo #(
 		.DATA_WIDTH($bits(t_if_ccip_c2_Tx)),
 		.CTL_WIDTH(0),
-		.DEPTH_BASE2($clog2(24)),
+		.DEPTH_BASE2($clog2(4)),
 		.GRAM_MODE(3),
-		.FULL_THRESH(24-12)
+		.FULL_THRESH(2)
 	)
 	inst_fifo_c2tx(
 		.Resetb(reset_r),
@@ -272,14 +335,14 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
     begin
     	if (T3_is_read && T3_is_ctl_mmio) 
     	begin
-    		pck_af2cp_sTx.c2 <= T3_Tx_c2;
+    		sTx.c2 <= T3_Tx_c2;
     	end 
     	else 
     	begin
     		if (fifo_c2tx_dout_v_T2)
-    			pck_af2cp_sTx.c2 <= fifo_c2tx_dout;
+    			sTx.c2 <= fifo_c2tx_dout;
             else
-                pck_af2cp_sTx.c2.mmioRdValid <= 0;
+                sTx.c2.mmioRdValid <= 0;
     	end 
     	
         fifo_c2tx_dout_v_T2 <= fifo_c2tx_dout_v_T1;
