@@ -36,6 +36,15 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
         reset_r <= ~pck_cp2af_softReset;
     end
 
+    logic [63:0]            offset_array_T0    [NUM_SUB_AFUS-1:0];
+    always_ff @(posedge clk)
+    begin
+        for (int i=0; i<NUM_SUB_AFUS; i++)
+        begin
+            offset_array[i] <= offset_array_T0[i];
+        end
+    end
+
     /* T0: connect to ccip */
     t_if_ccip_Rx sRx;
     t_if_ccip_Tx sTx;
@@ -78,10 +87,10 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
     begin
         afu_RxPort.c0 <= T1_Rx_temp.c0;
         afu_RxPort.c1 <= T1_Rx_temp.c1;
+        afu_RxPort.c0TxAlmFull <= sRx.c0TxAlmFull | c0tx_buf_almfull;
+        afu_RxPort.c1TxAlmFull <= sRx.c1TxAlmFull | c0tx_buf_almfull;
     end
 
-    assign afu_RxPort.c0TxAlmFull = sRx.c0TxAlmFull | c0tx_buf_almfull;
-    assign afu_RxPort.c1TxAlmFull = sRx.c1TxAlmFull | c0tx_buf_almfull;
 
 
     /* T2: decode */
@@ -141,6 +150,7 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
     /* T3: assign value */
     logic [2:0] user_clk_array [NUM_SUB_AFUS-1:0];
     t_if_ccip_c2_Tx T3_Tx_c2;
+    logic [LNUM_SUB_AFUS-1:0] T3_vmid;
 	logic T3_is_ctl_mmio;
 	logic T3_is_read;
     logic [127:0] mgr_id;
@@ -150,11 +160,13 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
     begin
         if (reset)
         begin
+            /*
             for (int i=0; i<NUM_SUB_AFUS; i++)
             begin
-                offset_array[i] <= 0;
+                offset_array_T0[i] <= 0;
                 user_clk_array[i] <= 0;
             end
+            */
 
             T3_Tx_c2 <= 0;
             sub_afu_reset <= 0;
@@ -164,11 +176,12 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
         else
         begin
         	T3_is_ctl_mmio <= T2_is_ctl_mmio;
+            T3_vmid <= T2_vmid;
             if (T2_is_write && T2_is_ctl_mmio)
             begin
                 if (T2_is_offset)
                 begin
-                    offset_array[T2_vmid] <= T2_data;
+                    offset_array_T0[T2_vmid] <= T2_data;
                 end
 
                 if (T2_is_reset)
@@ -184,7 +197,7 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
 
                 if (T2_is_offset)
                 begin
-                    T3_Tx_c2.data <= offset_array[T2_vmid];
+                    T3_Tx_c2.data <= offset_array_T0[T2_vmid];
                 end
                 else if (T2_is_reset)
                 begin
@@ -221,7 +234,7 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
         end
     end
 
-    localparam TX_BUF_SIZE = 2;
+    localparam TX_BUF_SIZE = 3;
     localparam LOG_TX_BUF_SIZE = $clog2(TX_BUF_SIZE);
     (* ramstyle = "logic" *) t_if_ccip_c0_Tx c0tx_buf [TX_BUF_SIZE-1:0];
     (* ramstyle = "logic" *) t_if_ccip_c1_Tx c1tx_buf [TX_BUF_SIZE-1:0];
