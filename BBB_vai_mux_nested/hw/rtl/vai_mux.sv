@@ -147,7 +147,16 @@ module vai_mux #(NUM_SUB_AFUS=9)
 
     always_ff @(posedge pClk)
     begin
-        up_TxPort <= up_TxPort_T0;
+        if (SoftReset)
+        begin
+            up_TxPort.c0.valid <= 0;
+            up_TxPort.c1.valid <= 0;
+            up_TxPort.c2.mmioRdValid <= 0;
+        end
+        else
+        begin
+            up_TxPort <= up_TxPort_T0;
+        end
     end
 
 endmodule

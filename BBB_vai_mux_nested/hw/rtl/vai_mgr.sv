@@ -36,7 +36,7 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
         reset_r <= ~pck_cp2af_softReset;
     end
 
-    logic [63:0]            offset_array_T0    [NUM_SUB_AFUS-1:0];
+    logic [63:0] offset_array_T0 [NUM_SUB_AFUS-1:0];
     always_ff @(posedge clk)
     begin
         for (int i=0; i<NUM_SUB_AFUS; i++)
@@ -44,6 +44,9 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
             offset_array[i] <= offset_array_T0[i];
         end
     end
+
+    logic mgr_c0tx_sidebuf_overflow;
+    logic mgr_c1tx_sidebuf_overflow;
 
     /* T0: connect to ccip */
     t_if_ccip_Rx sRx;
@@ -223,7 +226,11 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
                 end
                 else
                 begin
-                    T3_Tx_c2.data <= 64'hffffffffffffffff;
+                    T3_Tx_c2.data <= 64'h0;
+                    T3_Tx_c2.data[0] <= mgr_c0tx_sidebuf_overflow;
+                    T3_Tx_c2.data[1] <= mgr_c1tx_sidebuf_overflow;
+                    T3_Tx_c2.data[2] <= sRx.c0TxAlmFull;
+                    T3_Tx_c2.data[3] <= sRx.c1TxAlmFull;
                 end
             end
             else
@@ -252,6 +259,8 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
             c0tx_buf_cnt2 <= 0;
             c1tx_buf_cnt <= 0;
             c1tx_buf_cnt2 <= 0;
+            mgr_c0tx_sidebuf_overflow <= 0;
+            mgr_c1tx_sidebuf_overflow <= 0;
         end
         else
         begin
@@ -278,6 +287,7 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
 
                 if (c0tx_buf_cnt == TX_BUF_SIZE)
                 begin
+                    mgr_c0tx_sidebuf_overflow <= 1;
                     $display("%m \m ERROR: c0tx side buffer overflow detected");
                     $finish();
                 end
@@ -299,6 +309,7 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
 
                 if (c1tx_buf_cnt == TX_BUF_SIZE)
                 begin
+                    mgr_c1tx_sidebuf_overflow <= 1;
                     $display("%m \m ERROR: c1tx side buffer overflow detected");
                     $finish();
                 end
