@@ -415,8 +415,9 @@ module ccip_std_afu
     assign c1Rx_reccnt = sRx.c1.hdr.mdata[$clog2(RECORD_NUM):0];
     assign report_done = (report_reccnt == reccnt);
     // queue for timing
+    logic report_stage_2;
     logic should_rec_Q;
-    logic [$clog2(RECORD_NUM):0] reccnt_Q;
+    logic [$clog2(RECORD_NUM):0] reccnt_Q, report_reccnt_Q;
     logic [RECORD_WIDTH-1:0] latbgn_Q;
     /*
      * send memory read and write requests
@@ -430,98 +431,110 @@ module ccip_std_afu
             sTx.c1.valid <= 1'b0;
             report_reccnt <= 0;
             should_rec_Q <= 0;
+            report_stage_2 <= 0;
         end
-        if (should_rec_Q) begin
-            should_rec_Q <= 0;
-            latbgn[reccnt_Q] <= latbgn_Q;
-        end
-        case (state)
-            STATE_RUN: begin
-                if (do_read) begin
-                    sTx.c0.valid <= 1'b1;
-                    sTx.c0.hdr.vc_sel <= read_vc;
-                    sTx.c0.hdr.cl_len <= eCL_LEN_1;
-                    sTx.c0.hdr.req_type <= read_hint;
-                    sTx.c0.hdr.address <= next_addr;
-                    if (should_rec) begin
-                        sTx.c0.hdr.mdata <= reccnt;
-                        should_rec_Q <= 1;
-                        reccnt_Q <= reccnt;
-                        latbgn_Q <= clk_cnt[RECORD_WIDTH-1:0];
-                        reccnt <= reccnt + 1;
+        else
+        begin
+            if (should_rec_Q) begin
+                should_rec_Q <= 0;
+                latbgn[reccnt_Q] <= latbgn_Q;
+            end
+            case (state)
+                STATE_RUN: begin
+                    if (do_read) begin
+                        sTx.c0.valid <= 1'b1;
+                        sTx.c0.hdr.vc_sel <= read_vc;
+                        sTx.c0.hdr.cl_len <= eCL_LEN_1;
+                        sTx.c0.hdr.req_type <= read_hint;
+                        sTx.c0.hdr.address <= next_addr;
+                        if (should_rec) begin
+                            sTx.c0.hdr.mdata <= reccnt;
+                            should_rec_Q <= 1;
+                            reccnt_Q <= reccnt;
+                            latbgn_Q <= clk_cnt[RECORD_WIDTH-1:0];
+                            reccnt <= reccnt + 1;
+                        end
+                        else begin
+                            sTx.c0.hdr.mdata <= RECORD_NUM;
+                        end
                     end
                     else begin
-                        sTx.c0.hdr.mdata <= RECORD_NUM;
+                        sTx.c0.valid <= 1'b0;
+                        sTx.c0.hdr <= t_ccip_c0_ReqMemHdr'(0);
                     end
-                end
-                else begin
-                    sTx.c0.valid <= 1'b0;
-                    sTx.c0.hdr <= t_ccip_c0_ReqMemHdr'(0);
-                end
-                if (do_write) begin
-                    sTx.c1.valid <= 1'b1;
-                    sTx.c1.hdr.vc_sel <= write_vc;
-                    sTx.c1.hdr.sop <= 1'b1;
-                    sTx.c1.hdr.cl_len <= eCL_LEN_1;
-                    sTx.c1.hdr.req_type <= write_hint;
-                    sTx.c1.hdr.address <= next_addr;
-                    sTx.c1.data <= random_offset;
-                    if (should_rec) begin
-                        sTx.c1.hdr.mdata <= reccnt;
-                        should_rec_Q <= 1;
-                        reccnt_Q <= reccnt;
-                        latbgn_Q <= clk_cnt[RECORD_WIDTH-1:0];
-                        reccnt <= reccnt + 1;
+                    if (do_write) begin
+                        sTx.c1.valid <= 1'b1;
+                        sTx.c1.hdr.vc_sel <= write_vc;
+                        sTx.c1.hdr.sop <= 1'b1;
+                        sTx.c1.hdr.cl_len <= eCL_LEN_1;
+                        sTx.c1.hdr.req_type <= write_hint;
+                        sTx.c1.hdr.address <= next_addr;
+                        sTx.c1.data <= random_offset;
+                        if (should_rec) begin
+                            sTx.c1.hdr.mdata <= reccnt;
+                            should_rec_Q <= 1;
+                            reccnt_Q <= reccnt;
+                            latbgn_Q <= clk_cnt[RECORD_WIDTH-1:0];
+                            reccnt <= reccnt + 1;
+                        end
+                        else begin
+                            sTx.c1.hdr.mdata <= RECORD_NUM;
+                        end
                     end
                     else begin
+                        sTx.c1.valid <= 1'b0;
+                        sTx.c1.hdr <= t_ccip_c1_ReqMemHdr'(0);
+                    end
+                end
+                STATE_REPORT: begin
+                    if (!sRx.c1TxAlmFull && !report_done) begin
+                        report_reccnt_Q <= report_reccnt;
+                        report_stage_2 <= 1;
+                        report_reccnt <= report_reccnt + REPORT_UNIT;
+                    end
+                    else begin
+                        report_stage_2 <= 0;
+                    end
+                    if (report_stage_2) begin
+                        sTx.c1.valid <= 1'b1;
+                        sTx.c1.hdr.vc_sel <= eVC_VL0;
+                        sTx.c1.hdr.sop <= 1'b1;
+                        sTx.c1.hdr.cl_len <= eCL_LEN_1;
+                        sTx.c1.hdr.req_type <= eREQ_WRLINE_I;
+                        sTx.c1.hdr.address <= report_addr + report_reccnt_Q[$clog2(RECORD_NUM):$clog2(REPORT_UNIT)];
                         sTx.c1.hdr.mdata <= RECORD_NUM;
+                        sTx.c1.data <= t_ccip_clData'(latrec[report_reccnt_Q+:REPORT_UNIT]);
+                    end
+                    else begin
+                        sTx.c1.valid <= 1'b0;
                     end
                 end
-                else begin
+                STATE_FINISH: begin
+                    if (!sRx.c1TxAlmFull && !finish_done) begin
+                        sTx.c1.valid <= 1'b1;
+                        sTx.c1.hdr.vc_sel <= eVC_VL0;
+                        sTx.c1.hdr.sop <= 1'b1;
+                        sTx.c1.hdr.cl_len <= eCL_LEN_1;
+                        sTx.c1.hdr.req_type <= eREQ_WRLINE_I;
+                        sTx.c1.hdr.address <= status_addr;
+                        sTx.c1.hdr.mdata <= RECORD_NUM;
+                        sTx.c1.data[0] <= 1'b1;
+                        sTx.c1.data[63:1] <= 0;
+                        sTx.c1.data[127:64] <= clk_cnt;
+                        sTx.c1.data[511:128] <= 0;
+                        finish_done <= 1;
+                    end
+                    else begin
+                        sTx.c1.valid <= 1'b0;
+                        finish_done <= 0;
+                    end
+                end
+                default: begin
+                    sTx.c0.valid <= 1'b0;
                     sTx.c1.valid <= 1'b0;
-                    sTx.c1.hdr <= t_ccip_c1_ReqMemHdr'(0);
                 end
-            end
-            STATE_REPORT: begin
-                if (!sRx.c1TxAlmFull && !report_done) begin
-                    sTx.c1.valid <= 1'b1;
-                    sTx.c1.hdr.vc_sel <= eVC_VL0;
-                    sTx.c1.hdr.sop <= 1'b1;
-                    sTx.c1.hdr.cl_len <= eCL_LEN_1;
-                    sTx.c1.hdr.req_type <= eREQ_WRLINE_I;
-                    sTx.c1.hdr.address <= report_addr + report_reccnt[$clog2(RECORD_NUM):$clog2(REPORT_UNIT)];
-                    sTx.c1.hdr.mdata <= t_ccip_mdata'(0);
-                    sTx.c1.data <= t_ccip_clData'(latrec[report_reccnt+:REPORT_UNIT]);
-                    report_reccnt <= report_reccnt + REPORT_UNIT;
-                end
-                else
-                    sTx.c1.valid <= 1'b0;
-            end
-            STATE_FINISH: begin
-                if (!sRx.c1TxAlmFull && !finish_done) begin
-                    sTx.c1.valid <= 1'b1;
-                    sTx.c1.hdr.vc_sel <= eVC_VL0;
-                    sTx.c1.hdr.sop <= 1'b1;
-                    sTx.c1.hdr.cl_len <= eCL_LEN_1;
-                    sTx.c1.hdr.req_type <= eREQ_WRLINE_I;
-                    sTx.c1.hdr.address <= status_addr;
-                    sTx.c1.hdr.mdata <= t_ccip_mdata'(0);
-                    sTx.c1.data[0] <= 1'b1;
-                    sTx.c1.data[63:1] <= 0;
-                    sTx.c1.data[127:64] <= clk_cnt;
-                    sTx.c1.data[511:128] <= 0;
-                    finish_done <= 1;
-                end
-                else begin
-                    sTx.c1.valid <= 1'b0;
-                    finish_done <= 0;
-                end
-            end
-            default: begin
-                sTx.c0.valid <= 1'b0;
-                sTx.c1.valid <= 1'b0;
-            end
-        endcase
+            endcase
+        end
     end
     /*
      * handle memory read and write response
@@ -536,78 +549,86 @@ module ccip_std_afu
         begin
             read_cnt <= 64'h0;
             write_cnt <= 64'h0;
+            rdrsp_stage2 <= 0;
+            wrrsp_stage2 <= 0;
+            rdrsp_stage3 <= 0;
+            wrrsp_stage3 <= 0;
+            rdrsp_stage4 <= 0;
+            wrrsp_stage4 <= 0;
         end
-        if (sRx.c1.rspValid == 1'b1)
-        begin
-            write_cnt <= write_cnt + 1;
-            if (c1Rx_reccnt != RECORD_NUM)
+        else begin
+            if (sRx.c1.rspValid == 1'b1)
             begin
-                wrrsp_stage2 <= 1;
-                c1Rx_reccnt_Q <= c1Rx_reccnt;
+                write_cnt <= write_cnt + 1;
+                if (c1Rx_reccnt != RECORD_NUM)
+                begin
+                    wrrsp_stage2 <= 1;
+                    c1Rx_reccnt_Q <= c1Rx_reccnt;
+                end
+                else
+                begin
+                    wrrsp_stage2 <= 0;
+                end
+            end
+            if (wrrsp_stage2) begin
+                wrlatbgn <= latbgn[c1Rx_reccnt_Q];
+                c1Rx_reccnt_QQ <= c1Rx_reccnt_Q;
+                wrrsp_stage3 <= 1;
+            end
+            else begin
+                wrrsp_stage3 <= 0;
+            end
+            if (wrrsp_stage3) begin
+                wrlat <= clk_cnt[RECORD_WIDTH-1:0] - wrlatbgn;
+                c1Rx_reccnt_QQQ <= c1Rx_reccnt_QQ;
+                wrrsp_stage4 <= 1;
             end
             else
             begin
-                wrrsp_stage2 <= 0;
+                wrrsp_stage4 <= 0;
             end
-        end
-        if (wrrsp_stage2) begin
-            wrlatbgn <= latbgn[c1Rx_reccnt_Q];
-            c1Rx_reccnt_QQ <= c1Rx_reccnt_Q;
-            wrrsp_stage3 <= 1;
-        end
-        else begin
-            wrrsp_stage3 <= 0;
-        end
-        if (wrrsp_stage3) begin
-            wrlat <= clk_cnt[RECORD_WIDTH-1:0] - wrlatbgn;
-            c1Rx_reccnt_QQQ <= c1Rx_reccnt_QQ;
-            wrrsp_stage4 <= 1;
-        end
-        else
-        begin
-            wrrsp_stage4 <= 0;
-        end
-        if (wrrsp_stage4) begin
-            latrec[c1Rx_reccnt_QQQ][RECORD_WIDTH-2:0] <= wrlat;
-            latrec[c1Rx_reccnt_QQQ][RECORD_WIDTH-1] <= 1'b1; // last bit == 0: write request
-        end
-        if (sRx.c0.rspValid == 1'b1)
-        begin
-            read_cnt <= read_cnt + 1;
-            if (c0Rx_reccnt != RECORD_NUM)
+            if (wrrsp_stage4) begin
+                latrec[c1Rx_reccnt_QQQ][RECORD_WIDTH-2:0] <= wrlat;
+                latrec[c1Rx_reccnt_QQQ][RECORD_WIDTH-1] <= 1'b1; // last bit == 0: write request
+            end
+            if (sRx.c0.rspValid == 1'b1)
             begin
-                rdrsp_stage2 <= 1;
-                c0Rx_reccnt_Q <= c0Rx_reccnt;
+                read_cnt <= read_cnt + 1;
+                if (c0Rx_reccnt != RECORD_NUM)
+                begin
+                    rdrsp_stage2 <= 1;
+                    c0Rx_reccnt_Q <= c0Rx_reccnt;
+                end
+                else
+                begin
+                    rdrsp_stage2 <= 0;
+                end
             end
             else
             begin
                 rdrsp_stage2 <= 0;
             end
-        end
-        else
-        begin
-            rdrsp_stage2 <= 0;
-        end
-        if (rdrsp_stage2) begin
-            rdlatbgn <= latbgn[c0Rx_reccnt_Q]; // intended overflow here
-            c0Rx_reccnt_QQ <= c0Rx_reccnt_Q;
-            rdrsp_stage3 <= 1;
-        end
-        else begin
-            rdrsp_stage3 <= 0;
-        end
-        if (rdrsp_stage3) begin
-            rdlat <= clk_cnt[RECORD_WIDTH-1:0] - rdlatbgn;
-            c0Rx_reccnt_QQQ <= c0Rx_reccnt_QQ;
-            rdrsp_stage4 <= 1;
-        end
-        else
-        begin
-            rdrsp_stage4 <= 0;
-        end
-        if (rdrsp_stage4) begin
-            latrec[c0Rx_reccnt_QQQ][RECORD_WIDTH-2:0] <= rdlat;
-            latrec[c0Rx_reccnt_QQQ][RECORD_WIDTH-1] <= 1'b0; // last bit == 0: read request
+            if (rdrsp_stage2) begin
+                rdlatbgn <= latbgn[c0Rx_reccnt_Q]; // intended overflow here
+                c0Rx_reccnt_QQ <= c0Rx_reccnt_Q;
+                rdrsp_stage3 <= 1;
+            end
+            else begin
+                rdrsp_stage3 <= 0;
+            end
+            if (rdrsp_stage3) begin
+                rdlat <= clk_cnt[RECORD_WIDTH-1:0] - rdlatbgn;
+                c0Rx_reccnt_QQQ <= c0Rx_reccnt_QQ;
+                rdrsp_stage4 <= 1;
+            end
+            else
+            begin
+                rdrsp_stage4 <= 0;
+            end
+            if (rdrsp_stage4) begin
+                latrec[c0Rx_reccnt_QQQ][RECORD_WIDTH-2:0] <= rdlat;
+                latrec[c0Rx_reccnt_QQQ][RECORD_WIDTH-1] <= 1'b0; // last bit == 0: read request
+            end
         end
     end
     /*
