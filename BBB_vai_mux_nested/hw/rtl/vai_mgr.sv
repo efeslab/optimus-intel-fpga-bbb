@@ -347,7 +347,7 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
 		.T2_fifo_dout(fifo_c2tx_dout),
 		.T0_fifo_ctlout(),
 		.T0_fifo_dout_v(fifo_c2tx_dout_v),
-		.T0_fifo_empty(fifo_c2tx_empty),
+		.T0_fifo_empty(),
 		.T0_fifo_full(fifo_c2tx_full),
 		.T0_fifo_count(),
 		.T0_fifo_almFull(fifo_c2tx_almFull),
