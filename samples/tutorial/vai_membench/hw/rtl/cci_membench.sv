@@ -432,6 +432,7 @@ module ccip_std_afu
             report_reccnt <= 0;
             should_rec_Q <= 0;
             report_stage_2 <= 0;
+            finish_done <= 0;
         end
         else
         begin
