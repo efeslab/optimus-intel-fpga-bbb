@@ -175,7 +175,7 @@ found_prop:
     size_t buf_size = num_pages * getpagesize();
     uint64_t len_mask = (buf_size/CL(1)) - 1; // access unit in AFU is cache line
     size_t alloc_size[NUM_BUF]; {
-        alloc_size[DATABUF] = buf_size;
+        alloc_size[DATABUF] = buf_size + 1;
         alloc_size[STATBUF] = getpagesize();
     }
     accel_handle = connect_to_accel(AFU_ACCEL_UUID);
@@ -193,12 +193,13 @@ found_prop:
     status_buf->completion = 0;
     // Tell the accelerator the address of the buffer using cache line
     // addresses.  The accelerator will respond by writing to the buffer.
+    uint64_t databuf = ((buf_pa[DATABUF] & (~0xfff)) + 0x1000);
     assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_REPORT_ADDR, buf_pa[STATBUF]/CL(1)) == FPGA_OK &&
             "Write Status Addr failed");
     printf("status addr is %lX\n", buf_pa[STATBUF]);
-    assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_MEM_BASE, buf_pa[DATABUF]/CL(1)) == FPGA_OK &&
+    assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_MEM_BASE, databuf/CL(1)) == FPGA_OK &&
             "Write MEM BASE failed");
-    printf("MEM BASE is %lX\n", buf_pa[DATABUF]);
+    printf("MEM BASE is %lX\n", databuf);
     assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_LEN_MASK, len_mask) == FPGA_OK &&
             "Write LEN MASK failed");
     printf("%zu Cache lines , buf_size is %zu, len mask %lx\n", buf_size/CL(1), buf_size, len_mask);
