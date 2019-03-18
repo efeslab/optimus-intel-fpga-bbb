@@ -162,7 +162,7 @@ endif(AAL_PRESENT)
 ##
 ## Build vai version if vai exists.
 ##
-check_include_file("vai/vai.h" VAI_PRESENT)
+check_include_file("vai/fpga.h" VAI_PRESENT)
 if (VAI_PRESENT)
     include(src_vai/mpf_vai.cmake)
 else(VAI_PRESENT)
