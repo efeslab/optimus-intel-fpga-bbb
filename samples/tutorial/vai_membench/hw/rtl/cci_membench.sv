@@ -166,8 +166,8 @@ module ccip_std_afu
     logic [31:0] len_mask;
     logic [RECFILTER_WIDTH - 1:0] rec_filter;
     logic [63:0] clk_cnt;
-    logic [63:0] read_cnt,  read_total;
-    logic [63:0] write_cnt, write_total;
+    logic [63:0] read_cnt,  rdrsp_cnt, read_total;
+    logic [63:0] write_cnt, wrrsp_cnt, write_total;
     logic [63:0] csr_properties;
     t_ccip_vc read_vc, write_vc;
     t_ccip_c0_req read_hint;
@@ -327,7 +327,7 @@ module ccip_std_afu
     //
     // =========================================================================
 
-    logic read_done, write_done, can_read, can_write, do_read, do_write;
+    logic read_done, write_done, can_read, can_write, do_read, do_write, rdrsp_done, wrrsp_done;
     logic report_done, finish_done; // finish_done is set after write complete bit
     //
     // State machine
@@ -359,7 +359,7 @@ module ccip_std_afu
             // The AFU completes its task by writing a single line.  When
             // the line is written return to idle.  The write will happen
             // as long as the request channel is not full.
-            if ((state == STATE_RUN) && read_done && write_done)
+            if ((state == STATE_RUN) && read_done && write_done && rdrsp_done && wrrsp_done)
             begin
                 state <= STATE_REPORT;
                 $display("AFU reporting...");
@@ -383,6 +383,8 @@ module ccip_std_afu
     always_ff @(posedge clk) begin
         read_done <= (read_cnt >= read_total);
         write_done <= (write_cnt >= write_total);
+        rdrsp_done <= (rdrsp_cnt >= read_cnt);
+        wrrsp_done <= (wrrsp_cnt >= write_cnt);
     end
     //assign read_done = (read_cnt >= read_total);
     //assign write_done = (write_cnt >= write_total);
@@ -413,7 +415,7 @@ module ccip_std_afu
     assign should_rec = (random_offset[RECFILTER_WIDTH+PAGE_IDX_WIDTH-1:PAGE_IDX_WIDTH] == rec_filter) && (reccnt != RECORD_NUM);
     assign c0Rx_reccnt = sRx.c0.hdr.mdata[$clog2(RECORD_NUM):0];
     assign c1Rx_reccnt = sRx.c1.hdr.mdata[$clog2(RECORD_NUM):0];
-    assign report_done = (report_reccnt == reccnt);
+    assign report_done = (report_reccnt >= reccnt);
     // queue for timing
     logic report_stage_2;
     logic should_rec_Q;
@@ -426,6 +428,8 @@ module ccip_std_afu
     begin
         if (reset)
         begin
+            read_cnt <= 64'h0;
+            write_cnt <= 64'h0;
             sTx.c0.valid <= 1'b0;
             reccnt <= 0;
             sTx.c1.valid <= 1'b0;
@@ -443,6 +447,7 @@ module ccip_std_afu
             case (state)
                 STATE_RUN: begin
                     if (do_read) begin
+                        read_cnt <= read_cnt + 1;
                         sTx.c0.valid <= 1'b1;
                         sTx.c0.hdr.vc_sel <= read_vc;
                         sTx.c0.hdr.cl_len <= eCL_LEN_1;
@@ -464,6 +469,7 @@ module ccip_std_afu
                         sTx.c0.hdr <= t_ccip_c0_ReqMemHdr'(0);
                     end
                     if (do_write) begin
+                        write_cnt <= write_cnt + 1;
                         sTx.c1.valid <= 1'b1;
                         sTx.c1.hdr.vc_sel <= write_vc;
                         sTx.c1.hdr.sop <= 1'b1;
@@ -544,23 +550,27 @@ module ccip_std_afu
     logic rdrsp_stage2, rdrsp_stage3, rdrsp_stage4;
     logic wrrsp_stage2, wrrsp_stage3, wrrsp_stage4;
     logic [RECORD_WIDTH-1:0] rdlat, wrlat, rdlatbgn, wrlatbgn;
+    integer i;
     always_ff @(posedge clk)
     begin
         if (reset)
         begin
-            read_cnt <= 64'h0;
-            write_cnt <= 64'h0;
+            rdrsp_cnt <= 0;
+            wrrsp_cnt <= 0;
             rdrsp_stage2 <= 0;
             wrrsp_stage2 <= 0;
             rdrsp_stage3 <= 0;
             wrrsp_stage3 <= 0;
             rdrsp_stage4 <= 0;
             wrrsp_stage4 <= 0;
+            for (i=0; i < RECORD_NUM; ++i) begin
+                latrec[i] <= 0;
+            end
         end
         else begin
             if (sRx.c1.rspValid == 1'b1)
             begin
-                write_cnt <= write_cnt + 1;
+                wrrsp_cnt <= wrrsp_cnt + 1;
                 if (c1Rx_reccnt != RECORD_NUM)
                 begin
                     wrrsp_stage2 <= 1;
@@ -594,7 +604,7 @@ module ccip_std_afu
             end
             if (sRx.c0.rspValid == 1'b1)
             begin
-                read_cnt <= read_cnt + 1;
+                rdrsp_cnt <= rdrsp_cnt + 1;
                 if (c0Rx_reccnt != RECORD_NUM)
                 begin
                     rdrsp_stage2 <= 1;
