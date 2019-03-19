@@ -116,16 +116,29 @@ static volatile void* alloc_buffer(fpga_handle accel_handle,
 }
 
 typedef enum {DATABUF=0,STATBUF,NUM_BUF} buf_t;
+size_t cmdarg_getbytes(const char *arg) {
+    size_t l = strlen(arg);
+    uint64_t n = atoll(arg);
+    switch (arg[l - 1]) {
+        default:
+        case 'p':
+        case 'P': // unit is page
+            return n * getpagesize();
+        case 'c':
+        case 'C': // unit is cache line
+            return CL(n);
+    }
+}
 int main(int argc, char *argv[])
 {
     fpga_handle accel_handle;
-    uint32_t num_pages;
+    uint64_t buf_size;
     uint64_t read_total;
     uint64_t write_total;
     uint64_t csr_properties = 0;
     srand(time(NULL));
     if (argc < 8) {
-        printf("Usage: %s num_pages read_total(unit pages) write_total(unit pages) Properties(Channelx2 Cache_Hintx2)\n", argv[0]);
+        printf("Usage: %s num_pages([P]age | [C]acheline) read_total([P | C]) write_total([P | C]) Properties(Channelx2 Cache_Hintx2)\n", argv[0]);
         printf("\tChannel properties:");
         for (size_t i=0; i < ARRSIZE(vc_map); ++i) {
             printf(" %s", vc_map[i].name);
@@ -144,9 +157,9 @@ int main(int argc, char *argv[])
         return -1;
     }
     else {
-        num_pages = atoi(argv[1]);
-        read_total = atoll(argv[2]) * getpagesize() / CL(1);
-        write_total = atoll(argv[3]) * getpagesize() / CL(1);
+        buf_size = cmdarg_getbytes(argv[1]);
+        read_total = cmdarg_getbytes(argv[2]) / CL(1);
+        write_total = cmdarg_getbytes(argv[3]) / CL(1);
         // read properties from command line
         uint64_t vc_property = 0;
         uint64_t rd_ch_property = 0;
@@ -172,8 +185,8 @@ found_prop:
     volatile unsigned char *buf[NUM_BUF];
     uint64_t buf_pa[NUM_BUF];
     uint64_t wsid[NUM_BUF];
-    size_t buf_size = num_pages * getpagesize();
     uint64_t len_mask = (buf_size/CL(1)) - 1; // access unit in AFU is cache line
+    assert(((buf_size % getpagesize()) == 0 ) && ("buf_size should be page aligned"));
     size_t alloc_size[NUM_BUF]; {
         alloc_size[DATABUF] = buf_size + 1;
         alloc_size[STATBUF] = getpagesize();
