@@ -53,9 +53,9 @@ module vai_audit_tx #(parameter NUM_SUB_AFUS=8)
             begin
                 if (reset_qqq[n])
                 begin
-                    T1_c0 <= t_if_ccip_c0_Tx'(0);
-                    T1_c1 <= t_if_ccip_c1_Tx'(0);
-                    T1_c2 <= t_if_ccip_c2_Tx'(0);
+                    T1_c0.valid <= 0;
+                    T1_c1.valid <= 0;
+                    T1_c2.mmioRdValid <= 0;
                     T1_offset_mem <= 0;
                     T1_offset_mmio <= 0;
                 end
@@ -78,9 +78,9 @@ module vai_audit_tx #(parameter NUM_SUB_AFUS=8)
             begin
                 if (reset_qqq[n])
                 begin
-                    T2_c0 <= t_if_ccip_c0_Tx'(0);
-                    T2_c1 <= t_if_ccip_c1_Tx'(0);
-                    T2_c2 <= t_if_ccip_c2_Tx'(0);
+                    T2_c0.valid <= 0;
+                    T2_c1.valid <= 0;
+                    T2_c2.mmioRdValid <= 0;
                 end
                 else
                 begin

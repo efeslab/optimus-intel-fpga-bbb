@@ -44,8 +44,10 @@ module vai_audit_rx2 # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
             begin
                 if (reset_qq[n])
                 begin
-                    T1_c0 <= t_if_ccip_c0_Rx'(0);
-                    T1_c1 <= t_if_ccip_c1_Rx'(0);
+                    T1_c0.rspValid <= 0;
+                    T1_c0.mmioRdValid <= 0;
+                    T1_c0.mmioWrValid <= 0;
+                    T1_c1.rspValid <= 0;
                     T1_mmio_req_hdr <= t_ccip_c0_ReqMmioHdr'(0);
                     T1_is_mmio_read <= 0;
                     T1_is_mmio_write <= 0;
@@ -79,8 +81,10 @@ module vai_audit_rx2 # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
             begin
                 if (reset_qq[n])
                 begin
-                    T2_c0 <= t_if_ccip_c0_Rx'(0);
-                    T2_c1 <= t_if_ccip_c1_Rx'(0);
+                    T2_c0.rspValid <= 0;
+                    T2_c0.mmioRdValid <= 0;
+                    T2_c0.mmioWrValid <= 0;
+                    T2_c1.rspValid <= 0;
                     T2_mmio_req_hdr <= t_ccip_c0_ReqMmioHdr'(0);
                     T2_is_mmio_read <= 0;
                     T2_is_mmio_write <= 0;
@@ -153,8 +157,10 @@ module vai_audit_rx2 # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
             begin
                 if (reset_qq[n])
                 begin
-                    T3_c0 <= t_if_ccip_c0_Rx'(0);
-                    T3_c1 <= t_if_ccip_c1_Rx'(0);
+                    T3_c0.rspValid <= 0;
+                    T3_c0.mmioRdValid <= 0;
+                    T3_c0.mmioWrValid <= 0;
+                    T3_c1.rspValid <= 0;
                     
 
                     T3_c0_vmid <= 0;
@@ -242,7 +248,9 @@ module vai_audit_rx2 # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
                 end
                 else 
                 begin
-                    afu_RxPort[n].c0 <= t_if_ccip_c0_Rx'(0);
+                    afu_RxPort[n].c0.rspValid <= 0;
+                    afu_RxPort[n].c0.mmioRdValid <= 0;
+                    afu_RxPort[n].c0.mmioWrValid <= 0;
                 end
 
                 if (n == T3_c1_vmid_to_afu)
@@ -251,7 +259,7 @@ module vai_audit_rx2 # (parameter NUM_SUB_AFUS=8, NUM_PIPE_STAGES=0)
                 end
                 else
                 begin
-                    afu_RxPort[n].c1 <= t_if_ccip_c1_Rx'(0);
+                    afu_RxPort[n].c1.rspValid <= 0;
                 end
 
                 afu_RxPort[n].c0TxAlmFull <= up_RxPort[n].c0TxAlmFull;

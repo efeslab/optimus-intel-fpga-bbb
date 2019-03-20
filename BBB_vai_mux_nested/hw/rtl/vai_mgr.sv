@@ -33,16 +33,7 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
     always @(posedge clk)
     begin
         reset <= pck_cp2af_softReset;
-        reset_r <= ~pck_cp2af_softReset;
-    end
-
-    logic [63:0] offset_array_T0 [NUM_SUB_AFUS-1:0];
-    always_ff @(posedge clk)
-    begin
-        for (int i=0; i<NUM_SUB_AFUS; i++)
-        begin
-            offset_array[i] <= offset_array_T0[i];
-        end
+        reset_r <= ~reset;;
     end
 
     logic mgr_c0tx_sidebuf_overflow;
@@ -166,12 +157,12 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
             /*
             for (int i=0; i<NUM_SUB_AFUS; i++)
             begin
-                offset_array_T0[i] <= 0;
+                offset_array[i] <= 0;
                 user_clk_array[i] <= 0;
             end
             */
 
-            T3_Tx_c2 <= 0;
+            T3_Tx_c2.mmioRdValid <= 0;
             sub_afu_reset <= 0;
             T3_is_ctl_mmio <= 0;
             T3_is_read <= 0;
@@ -184,7 +175,7 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
             begin
                 if (T2_is_offset)
                 begin
-                    offset_array_T0[T2_vmid] <= T2_data;
+                    offset_array[T2_vmid] <= T2_data;
                 end
 
                 if (T2_is_reset)
@@ -200,7 +191,7 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
 
                 if (T2_is_offset)
                 begin
-                    T3_Tx_c2.data <= offset_array_T0[T2_vmid];
+                    T3_Tx_c2.data <= offset_array[T2_vmid];
                 end
                 else if (T2_is_reset)
                 begin
