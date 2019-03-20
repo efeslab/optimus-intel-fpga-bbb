@@ -188,7 +188,7 @@ found_prop:
     uint64_t len_mask = (buf_size/CL(1)) - 1; // access unit in AFU is cache line
     assert(((buf_size % getpagesize()) == 0 ) && ("buf_size should be page aligned"));
     size_t alloc_size[NUM_BUF]; {
-        alloc_size[DATABUF] = buf_size + 1;
+        alloc_size[DATABUF] = buf_size + getpagesize();
         alloc_size[STATBUF] = getpagesize();
     }
     accel_handle = connect_to_accel(AFU_ACCEL_UUID);
