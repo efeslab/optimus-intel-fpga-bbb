@@ -16,6 +16,8 @@
 #define MMIO_CSR_CLK_CNT 0x58
 #define MMIO_CSR_STATE 0x60
 #define MMIO_CSR_REPORT_RECCNT 0x68
+#define MMIO_CSR_RDRSP_CNT 0x70
+#define MMIO_CSR_WRRSP_CNT 0x78
 //------------------ WO -------------------------------
 // write 1 to start the AFU
 #define MMIO_CSR_CTL 0x018

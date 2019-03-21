@@ -63,8 +63,10 @@ static property_entry_t wr_ch_map[] = {
 };
 struct debug_csr {
     uint64_t read_cnt;
+    uint64_t rdrsp_cnt;
     uint64_t read_total;
     uint64_t write_cnt;
+    uint64_t wrrsp_cnt;
     uint64_t write_total;
     uint64_t properties;
     uint64_t state;
@@ -75,8 +77,10 @@ struct debug_csr {
 // return value: 0 means ok, non-zero means something is wrong
 int get_debug_csr(fpga_handle *accel_handle, struct debug_csr *dbgcsr) {
     return (fpgaReadMMIO64(accel_handle, 0, MMIO_CSR_READ_CNT, &dbgcsr->read_cnt) ||
+            fpgaReadMMIO64(accel_handle, 0, MMIO_CSR_RDRSP_CNT, &dbgcsr->rdrsp_cnt) ||
             fpgaReadMMIO64(accel_handle, 0, MMIO_CSR_READ_TOTAL, &dbgcsr->read_total) ||
             fpgaReadMMIO64(accel_handle, 0, MMIO_CSR_WRITE_CNT, &dbgcsr->write_cnt) ||
+            fpgaReadMMIO64(accel_handle, 0, MMIO_CSR_WRRSP_CNT, &dbgcsr->wrrsp_cnt) ||
             fpgaReadMMIO64(accel_handle, 0, MMIO_CSR_WRITE_TOTAL, &dbgcsr->write_total) ||
             fpgaReadMMIO64(accel_handle, 0, MMIO_CSR_PROPERTIES, &dbgcsr->properties) ||
             fpgaReadMMIO64(accel_handle, 0, MMIO_CSR_CLK_CNT, &dbgcsr->clk_cnt) ||
@@ -85,9 +89,9 @@ int get_debug_csr(fpga_handle *accel_handle, struct debug_csr *dbgcsr) {
 }
 void print_csr(struct debug_csr *dbgcsr) {
     fprintf(stderr,
-            "read %lu/%lu, write %lu/%lu, clk %lu, state %lu, report_done %lu, reccnt %lu, report_reccnt %lu, properties: %s %s %s %s\n",
-            dbgcsr->read_cnt, dbgcsr->read_total,
-            dbgcsr->write_cnt, dbgcsr->write_total, dbgcsr->clk_cnt,
+            "read %lu(%lu)/%lu, write %lu(%lu)/%lu, clk %lu, state %lu, report_done %lu, reccnt %lu, report_reccnt %lu, properties: %s %s %s %s\n",
+            dbgcsr->read_cnt, dbgcsr->rdrsp_cnt, dbgcsr->read_total,
+            dbgcsr->write_cnt, dbgcsr->wrrsp_cnt, dbgcsr->write_total, dbgcsr->clk_cnt,
             (dbgcsr->state & 0x3), ((dbgcsr->state >> 2) & 0x1),
             (dbgcsr->report_reccnt & 0xffffffff), ((dbgcsr->report_reccnt >> 32) & 0xffffffff),
             GET_RD_VC_N(dbgcsr->properties), GET_WR_VC_N(dbgcsr->properties),

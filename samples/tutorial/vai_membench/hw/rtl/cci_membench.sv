@@ -134,6 +134,8 @@ module ccip_std_afu
     localparam MMIO_CSR_CLK_CNT = 16'h58 >> 2;
     localparam MMIO_CSR_STATE = 16'h60 >> 2;
     localparam MMIO_CSR_REPORT_RECCNT = 16'h68 >> 2;
+    localparam MMIO_CSR_RDRSP_CNT = 16'h70 >> 2;
+    localparam MMIO_CSR_WRRSP_CNT = 16'h78 >> 2;
     //------------------ WO -------------------------------
     // write 1 to start the AFU
     localparam MMIO_CSR_CTL = 16'h018 >> 2;
@@ -253,7 +255,12 @@ module ccip_std_afu
                     sTx.c2.data[31:0] <= reccnt;
                     sTx.c2.data[63:32] <= report_reccnt;
                 end
-
+                MMIO_CSR_RDRSP_CNT: begin
+                    sTx.c2.data[63:0] <= t_ccip_mmioData'(rdrsp_cnt);
+                end
+                MMIO_CSR_WRRSP_CNT: begin
+                    sTx.c2.data[63:0] <= t_ccip_mmioData'(wrrsp_cnt);
+                end
                 default: sTx.c2.data <= t_ccip_mmioData'(0);
             endcase
         end
