@@ -14,6 +14,8 @@
 #define MMIO_CSR_WRITE_CNT 0x50
 // how many cycles have passed since write 1 to MMIO_CSR_CTL
 #define MMIO_CSR_CLK_CNT 0x58
+#define MMIO_CSR_STATE 0x60
+#define MMIO_CSR_REPORT_RECCNT 0x68
 //------------------ WO -------------------------------
 // write 1 to start the AFU
 #define MMIO_CSR_CTL 0x018

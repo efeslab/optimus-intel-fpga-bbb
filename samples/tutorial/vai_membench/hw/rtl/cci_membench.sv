@@ -132,6 +132,8 @@ module ccip_std_afu
     localparam MMIO_CSR_WRITE_CNT = 16'h50 >> 2;
     // how many cycles have passed since write 1 to MMIO_CSR_CTL
     localparam MMIO_CSR_CLK_CNT = 16'h58 >> 2;
+    localparam MMIO_CSR_STATE = 16'h60 >> 2;
+    localparam MMIO_CSR_REPORT_RECCNT = 16'h68 >> 2;
     //------------------ WO -------------------------------
     // write 1 to start the AFU
     localparam MMIO_CSR_CTL = 16'h018 >> 2;
@@ -183,6 +185,8 @@ module ccip_std_afu
     logic [1:0] csr_ts_state;
     logic csr_ctl_start;
     logic xor_reset;
+    logic [$clog2(RECORD_NUM):0] reccnt, report_reccnt, c0Rx_reccnt, c1Rx_reccnt;
+    logic report_done, finish_done; // finish_done is set after write complete bit
     typedef enum logic [1:0]
     {
         STATE_IDLE,
@@ -196,6 +200,7 @@ module ccip_std_afu
     logic reset;
     assign reset = pck_cp2af_softReset;
 
+    // handling MMIO Read
     always_ff @(posedge clk)
     begin
         if (reset)
@@ -239,6 +244,15 @@ module ccip_std_afu
                 MMIO_CSR_CLK_CNT: sTx.c2.data <= t_ccip_mmioData'(clk_cnt);
                 MMIO_CSR_READ_CNT: sTx.c2.data <= t_ccip_mmioData'(read_cnt);
                 MMIO_CSR_WRITE_CNT: sTx.c2.data <= t_ccip_mmioData'(write_cnt);
+                MMIO_CSR_STATE: begin
+                    sTx.c2.data[1:0] <= state;
+                    sTx.c2.data[2] <= report_done;
+                    sTx.c2.data[63:3] <= 0;
+                end
+                MMIO_CSR_REPORT_RECCNT: begin
+                    sTx.c2.data[31:0] <= reccnt;
+                    sTx.c2.data[63:32] <= report_reccnt;
+                end
 
                 default: sTx.c2.data <= t_ccip_mmioData'(0);
             endcase
@@ -328,7 +342,6 @@ module ccip_std_afu
     // =========================================================================
 
     logic read_done, write_done, can_read, can_write, do_read, do_write, rdrsp_done, wrrsp_done;
-    logic report_done, finish_done; // finish_done is set after write complete bit
     //
     // State machine
     //
@@ -410,7 +423,6 @@ module ccip_std_afu
     end
 (* ramstyle = "logic" *) reg [RECORD_WIDTH-1:0] latbgn [RECORD_NUM - 1 : 0];
 (* ramstyle = "logic" *) reg [RECORD_WIDTH-1:0] latrec [RECORD_NUM - 1 : 0];
-    logic [$clog2(RECORD_NUM):0] reccnt, report_reccnt, c0Rx_reccnt, c1Rx_reccnt;
     logic should_rec;
     assign should_rec = (random_offset[RECFILTER_WIDTH+PAGE_IDX_WIDTH-1:PAGE_IDX_WIDTH] == rec_filter) && (reccnt != RECORD_NUM);
     assign c0Rx_reccnt = sRx.c0.hdr.mdata[$clog2(RECORD_NUM):0];
@@ -528,7 +540,8 @@ module ccip_std_afu
                         sTx.c1.data[0] <= 1'b1;
                         sTx.c1.data[63:1] <= 0;
                         sTx.c1.data[127:64] <= clk_cnt;
-                        sTx.c1.data[511:128] <= 0;
+                        sTx.c1.data[191:128] <= reccnt;
+                        sTx.c1.data[511:192] <= 0;
                         finish_done <= 1;
                     end
                     else begin
@@ -600,7 +613,7 @@ module ccip_std_afu
             end
             if (wrrsp_stage4) begin
                 latrec[c1Rx_reccnt_QQQ][RECORD_WIDTH-2:0] <= wrlat;
-                latrec[c1Rx_reccnt_QQQ][RECORD_WIDTH-1] <= 1'b1; // last bit == 0: write request
+                latrec[c1Rx_reccnt_QQQ][RECORD_WIDTH-1] <= 1'b1; // last bit == 1: write request
             end
             if (sRx.c0.rspValid == 1'b1)
             begin

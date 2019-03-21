@@ -267,7 +267,8 @@ found_prop:
     uint32_t lat_total = 0;;
     uint16_t lat_max = 0;
     uint16_t lat_min = 0xffff;
-    for (size_t i=0; i < RECORD_NUM; ++i) {
+    printf("%lu lat recorded\n", status_buf->reccnt);
+    for (size_t i=0; i < status_buf->reccnt; ++i) {
         uint16_t r = report_buf->lat[i];
         uint16_t lat = r & RECORD_LAT_MASK;
         printf(" %s: lat %u\n", (r&RECORD_RW_MASK)?"WR":"RD", lat);
@@ -275,7 +276,7 @@ found_prop:
         if (lat_min > lat) lat_min = lat;
         lat_total += lat;
     }
-    printf("lat max: %u, min %u, avg %f\n", lat_max, lat_min, (double)lat_total/RECORD_NUM);
+    printf("lat max: %u, min %u, avg %f\n", lat_max, lat_min, (double)lat_total/status_buf->reccnt);
     // Done
     for (i=0; i < NUM_BUF; ++i) {
         fpgaReleaseBuffer(accel_handle, wsid[i]);
