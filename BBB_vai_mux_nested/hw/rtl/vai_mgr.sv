@@ -38,6 +38,27 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
 
     logic mgr_c0tx_sidebuf_overflow;
     logic mgr_c1tx_sidebuf_overflow;
+    logic mgr_c2tx_overflow_T0;
+    logic mgr_c2tx_underflow_T0;
+    logic mgr_c2tx_overflow;
+    logic mgr_c2tx_underflow;
+
+    always @(posedge clk)
+    begin
+        if (reset)
+        begin
+            mgr_c2tx_overflow <= 0;
+            mgr_c2tx_underflow <= 0;
+        end
+        else
+        begin
+            if (mgr_c2tx_overflow_T0)
+                mgr_c2tx_overflow <= 1;
+            if (mgr_c2tx_underflow_T0)
+                mgr_c2tx_underflow <= 1;
+        end
+    end
+
 
     /* T0: connect to ccip */
     t_if_ccip_Rx sRx;
@@ -222,6 +243,8 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
                     T3_Tx_c2.data[1] <= mgr_c1tx_sidebuf_overflow;
                     T3_Tx_c2.data[2] <= sRx.c0TxAlmFull;
                     T3_Tx_c2.data[3] <= sRx.c1TxAlmFull;
+                    T3_Tx_c2.data[4] <= mgr_c2tx_overflow;
+                    T3_Tx_c2.data[5] <= mgr_c2tx_underflow;
                 end
             end
             else
@@ -342,8 +365,8 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
 		.T0_fifo_full(fifo_c2tx_full),
 		.T0_fifo_count(),
 		.T0_fifo_almFull(fifo_c2tx_almFull),
-		.T0_fifo_underflow(),
-		.T0_fifo_overflow()
+		.T0_fifo_underflow(mgr_c2tx_underflow_T0),
+		.T0_fifo_overflow(mgr_c2tx_overflow_T0)
 		);
     assign fifo_c2tx_rdack = fifo_c2tx_dout_v;
 	always_ff @(posedge clk)
