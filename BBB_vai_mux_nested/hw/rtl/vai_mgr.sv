@@ -43,6 +43,9 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
     logic mgr_c2tx_overflow;
     logic mgr_c2tx_underflow;
 
+    logic mgr_c0tx_conflict;
+    logic mgr_c1tx_conflict;
+
     always @(posedge clk)
     begin
         if (reset)
@@ -318,6 +321,8 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
                     T3_Tx_c2.data[3] <= sRx.c1TxAlmFull;
                     T3_Tx_c2.data[4] <= mgr_c2tx_overflow;
                     T3_Tx_c2.data[5] <= mgr_c2tx_underflow;
+                    T3_Tx_c2.data[6] <= mgr_c0tx_conflict;
+                    T3_Tx_c2.data[7] <= mgr_c1tx_conflict;
                 end
             end
             else
@@ -348,6 +353,8 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
             c1tx_buf_cnt2 <= 0;
             mgr_c0tx_sidebuf_overflow <= 0;
             mgr_c1tx_sidebuf_overflow <= 0;
+            mgr_c0tx_conflict <= 0;
+            mgr_c1tx_conflict <= 0;
         end
         else
         begin
@@ -383,6 +390,12 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
             begin
                 sTx.c0 <= c0tx_buf[c0tx_buf_cnt2-c0tx_buf_cnt];
                 c0tx_buf_cnt <= c0tx_buf_cnt - 1;
+
+                if (afu_TxPort.c0.valid)
+                begin
+                    mgr_c0tx_conflict <= 1;
+                    $finish();
+                end
             end
             else
                 sTx.c0 <= afu_TxPort.c0;
@@ -405,6 +418,12 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
             begin
                 sTx.c1 <= c1tx_buf[c1tx_buf_cnt2-c1tx_buf_cnt];
                 c1tx_buf_cnt <= c1tx_buf_cnt - 1;
+
+                if (afu_TxPort.c1.valid)
+                begin
+                    mgr_c1tx_conflict <= 1;
+                    $finish();
+                end
             end
             else
                 sTx.c1 <= afu_TxPort.c1;
