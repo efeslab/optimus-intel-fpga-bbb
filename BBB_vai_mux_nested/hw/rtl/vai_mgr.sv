@@ -353,14 +353,14 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
         begin
             if (~sRx.c0TxAlmFull)
                 c0tx_balance <= 0;
-            else if (afu_TxPort.c0.valid)
+            else if (sTx.c0.valid)
                 c0tx_balance <= c0tx_balance + 1;
             else
                 c0tx_balance <= c0tx_balance;
 
             if (~sRx.c1TxAlmFull)
                 c1tx_balance <= 0;
-            else if (afu_TxPort.c1.valid)
+            else if (sTx.c1.valid)
                 c1tx_balance <= c1tx_balance + 1;
             else
                 c1tx_balance <= c1tx_balance;
