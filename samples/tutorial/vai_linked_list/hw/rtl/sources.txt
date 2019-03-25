@@ -1,1 +1,3 @@
++define+AFU_WITHMUX_NAME=linked_list_nompf_top
++define+AFU_NOMUX_NAME=ccip_std_afu
 linked_list_nompf.sv

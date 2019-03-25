@@ -1,2 +1,4 @@
++define+AFU_WITHMUX_NAME=cci_membench_top
++define+AFU_NOMUX_NAME=ccip_std_afu
 cci_membench.sv
 xorwow.sv
