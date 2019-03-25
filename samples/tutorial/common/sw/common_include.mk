@@ -49,6 +49,7 @@ ifeq (,$(DESTDIR))
 ifeq (,$(prefix))
 prefix = /usr/local
 endif
+CFLAGS += -I$(prefix)/include
 CPPFLAGS += -I$(prefix)/include
 LDFLAGS  += -L$(prefix)/lib -Wl,-rpath-link -Wl,$(prefix)/lib -Wl,-rpath -Wl,$(prefix)/lib \
             -L$(prefix)/lib64 -Wl,-rpath-link -Wl,$(prefix)/lib64 -Wl,-rpath -Wl,$(prefix)/lib64
@@ -56,6 +57,7 @@ else
 ifeq (,$(prefix))
 prefix = /usr/local
 endif
+CFLAGS += -I$(DESTDIR)$(prefix)/include
 CPPFLAGS += -I$(DESTDIR)$(prefix)/include
 LDFLAGS  += -L$(DESTDIR)$(prefix)/lib -Wl,-rpath-link -Wl,$(prefix)/lib -Wl,-rpath -Wl,$(DESTDIR)$(prefix)/lib \
             -L$(DESTDIR)$(prefix)/lib64 -Wl,-rpath-link -Wl,$(prefix)/lib64 -Wl,-rpath -Wl,$(DESTDIR)$(prefix)/lib64
@@ -64,8 +66,7 @@ endif
 LDFLAGS += -luuid
 
 VAI_GUEST_DIR ?= ../../../../../vai-guest-module/
-CFLAGS += -I$(VAI_GUEST_DIR)/include
 FPGA_LIBS = -lopae-c
-FPGA_VAI_LIBS += -L$(VAI_GUEST_DIR) -lvai
+FPGA_VAI_LIBS += -L$(VAI_GUEST_DIR) -lvai -I$(VAI_GUEST_DIR)/include
 ASE_LIBS += -lopae-c-ase
 VAI_ASE_LIBS = -lopae-c-vai-ase
