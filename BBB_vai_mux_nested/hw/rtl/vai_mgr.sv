@@ -126,37 +126,6 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
     logic T2_is_ctl_mmio;
 	//t_if_ccip_Rx T2_Rx_temp;
 
-    logic T2_is_cnt_c0rx, T2_is_cnt_c0tx, T2_is_cnt_c1rx, T2_is_cnt_c1tx;
-    logic [63:0] cnt_c0rx, cnt_c0tx, cnt_c1rx, cnt_c1tx;
-    logic T2_is_precnt_c0rx, T2_is_precnt_c0tx, T2_is_precnt_c1rx, T2_is_precnt_c1tx;
-    logic [63:0] precnt_c0rx, precnt_c0tx, precnt_c1rx, precnt_c1tx;
-
-    always_ff @(posedge clk)
-    begin
-        if (reset)
-        begin
-            cnt_c0rx <= 0;
-            cnt_c1rx <= 0;
-            cnt_c0tx <= 0;
-            cnt_c1tx <= 0;
-            precnt_c0rx <= 0;
-            precnt_c1rx <= 0;
-            precnt_c0tx <= 0;
-            precnt_c1tx <= 0;
-        end
-        else
-        begin
-            cnt_c0rx <= cnt_c0rx + sRx.c0.rspValid;
-            cnt_c1rx <= cnt_c1rx + sRx.c1.rspValid;
-            cnt_c0tx <= cnt_c0tx + sTx.c0.valid;
-            cnt_c1tx <= cnt_c1tx + sTx.c1.valid;
-            precnt_c0rx <= precnt_c0rx + afu_RxPort.c0.rspValid;
-            precnt_c1rx <= precnt_c1rx + afu_RxPort.c1.rspValid;
-            precnt_c0tx <= precnt_c0tx + afu_TxPort.c0.valid;
-            precnt_c1tx <= precnt_c1tx + afu_TxPort.c1.valid;
-        end
-    end
-	
     always_ff @(posedge clk)
     begin
         if (reset)
@@ -190,16 +159,6 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
             T2_is_id_hi <= (T1_mmio_req_hdr.address == 4);
             T2_is_reset <= (T1_mmio_req_hdr.address == 6);
             T2_is_nafus <= (T1_mmio_req_hdr.address == 8);
-
-            T2_is_cnt_c0rx <= (T1_mmio_req_hdr.address == (32'h100 >> 2));
-            T2_is_cnt_c1rx <= (T1_mmio_req_hdr.address == (32'h108 >> 2));
-            T2_is_cnt_c0tx <= (T1_mmio_req_hdr.address == (32'h110 >> 2));
-            T2_is_cnt_c1tx <= (T1_mmio_req_hdr.address == (32'h118 >> 2));
-
-            T2_is_precnt_c0rx <= (T1_mmio_req_hdr.address == (32'h200 >> 2));
-            T2_is_precnt_c1rx <= (T1_mmio_req_hdr.address == (32'h208 >> 2));
-            T2_is_precnt_c0tx <= (T1_mmio_req_hdr.address == (32'h210 >> 2));
-            T2_is_precnt_c1tx <= (T1_mmio_req_hdr.address == (32'h218 >> 2));
 
             T2_is_read <= T1_is_mmio_read;
             T2_is_write <= T1_is_mmio_write;
@@ -280,45 +239,11 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
                 begin
                     T3_Tx_c2.data <= mgr_id[127:64];
                 end
-                else if (T2_is_cnt_c0rx)
-                begin
-                    T3_Tx_c2.data <= cnt_c0rx;
-                end
-                else if (T2_is_cnt_c1rx)
-                begin
-                    T3_Tx_c2.data <= cnt_c1rx;
-                end
-                else if (T2_is_cnt_c0tx)
-                begin
-                    T3_Tx_c2.data <= cnt_c0tx;
-                end
-                else if (T2_is_cnt_c1tx)
-                begin
-                    T3_Tx_c2.data <= cnt_c1tx;
-                end
-                else if (T2_is_precnt_c0rx)
-                begin
-                    T3_Tx_c2.data <= precnt_c0rx;
-                end
-                else if (T2_is_precnt_c1rx)
-                begin
-                    T3_Tx_c2.data <= precnt_c1rx;
-                end
-                else if (T2_is_precnt_c0tx)
-                begin
-                    T3_Tx_c2.data <= precnt_c0tx;
-                end
-                else if (T2_is_precnt_c1tx)
-                begin
-                    T3_Tx_c2.data <= precnt_c1tx;
-                end
                 else
                 begin
                     T3_Tx_c2.data <= 64'h0;
                     T3_Tx_c2.data[0] <= mgr_c0tx_sidebuf_overflow;
                     T3_Tx_c2.data[1] <= mgr_c1tx_sidebuf_overflow;
-                    T3_Tx_c2.data[2] <= sRx.c0TxAlmFull;
-                    T3_Tx_c2.data[3] <= sRx.c1TxAlmFull;
                     T3_Tx_c2.data[4] <= mgr_c2tx_overflow;
                     T3_Tx_c2.data[5] <= mgr_c2tx_underflow;
                     T3_Tx_c2.data[6] <= mgr_c0tx_conflict;
