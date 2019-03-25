@@ -1,2 +1,1 @@
-linked_list_nompf_cci.json
 linked_list_nompf.sv

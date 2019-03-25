@@ -31,8 +31,7 @@
 `include "platform_if.vh"
 `include "afu_json_info.vh"
 
-
-module ccip_std_afu
+module `TOP_IFC_NAME
    (
     // CCI-P Clocks and Resets
     input           logic             pClk,              // 400MHz - CCI-P clock domain. Primary interface clock

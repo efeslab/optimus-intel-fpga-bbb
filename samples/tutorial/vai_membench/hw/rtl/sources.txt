@@ -1,3 +1,2 @@
-cci_membench.json
 cci_membench.sv
 xorwow.sv
