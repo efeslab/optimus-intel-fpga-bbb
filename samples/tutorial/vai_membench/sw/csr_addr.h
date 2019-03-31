@@ -38,5 +38,6 @@
 // properties
 // Read VA: 0:1, Write VA: 2:3
 // Read Cache Hint: 4:7, Write Cache Hint 8:11
+// Access pattern: 12:12, 0: sequential 1: random
 #define MMIO_CSR_PROPERTIES 0x40
 #endif

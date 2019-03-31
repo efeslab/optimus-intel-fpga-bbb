@@ -137,8 +137,8 @@ int main(int argc, char *argv[])
     uint64_t write_total;
     uint64_t csr_properties = 0;
     srand(time(NULL));
-    if (argc < 8) {
-        printf("Usage: %s num_pages([P]age | [C]acheline) read_total([P | C]) write_total([P | C]) Properties(Channelx2 Cache_Hintx2)\n", argv[0]);
+    if (argc < 9) {
+        printf("Usage: %s num_pages([P]age | [C]acheline) read_total([P | C]) write_total([P | C]) Properties(Channelx2 Cache_Hintx2) [RAND|SEQ]\n", argv[0]);
         printf("\tChannel properties:");
         for (size_t i=0; i < ARRSIZE(vc_map); ++i) {
             printf(" %s", vc_map[i].name);
@@ -164,9 +164,10 @@ int main(int argc, char *argv[])
         uint64_t vc_property = 0;
         uint64_t rd_ch_property = 0;
         uint64_t wr_ch_property = 0;
-        property_entry_t *property_map[] = {vc_map, rd_ch_map, wr_ch_map};
-        size_t entries_num[] = {ARRSIZE(vc_map), ARRSIZE(rd_ch_map), ARRSIZE(wr_ch_map)};
-        uint64_t *properties[] = {&vc_property, &rd_ch_property, &wr_ch_property};
+        uint64_t acc_patt_property = 0;
+        property_entry_t *property_map[] = {vc_map, rd_ch_map, wr_ch_map, acc_patt_map};
+        size_t entries_num[] = {ARRSIZE(vc_map), ARRSIZE(rd_ch_map), ARRSIZE(wr_ch_map), ARRSIZE(acc_patt_map)};
+        uint64_t *properties[] = {&vc_property, &rd_ch_property, &wr_ch_property, &acc_patt_property};
         for (size_t i=4; i < argc; ++i) {
             for (size_t j=0; j < ARRSIZE(property_map); ++j) {
                 for (size_t k=0; k < entries_num[j]; ++k) {
@@ -179,7 +180,9 @@ int main(int argc, char *argv[])
 found_prop:
             ;
         }
-        csr_properties = vc_property | rd_ch_property | wr_ch_property;
+        for (size_t i=0; i < ARRSIZE(properties); ++i) {
+            csr_properties |= *(properties[i]);
+        }
     }
     // buf[0] is base_addr, buf[1] is status
     volatile unsigned char *buf[NUM_BUF];

@@ -48,6 +48,11 @@
 #define WR_CH_PAIR(name) {#name, PROP_WR_CH_##name}
 #define WR_CH_ENTRY_DEF WR_CH_PAIR(WRLINE_I), WR_CH_PAIR(WRLINE_M),\
         WR_CH_PAIR(WRPUSH_I), WR_CH_PAIR(WRFENCE), WR_CH_PAIR(INTR)
+// access pattern
+#define PROP_RAND_ACCESS (0x1 << 12)
+#define PROP_SEQ_ACCESS (0x0)
+#define ACC_PATT_PAIR(name) {#name, PROP_##name##_ACCESS}
+#define ACC_PATT_DEF ACC_PATT_PAIR(RAND), ACC_PATT_PAIR(SEQ)
 typedef struct {
     const char *name;
     uint32_t value;
@@ -60,6 +65,9 @@ static property_entry_t rd_ch_map[] = {
 };
 static property_entry_t wr_ch_map[] = {
     WR_CH_ENTRY_DEF
+};
+static property_entry_t acc_patt_map[] = {
+    ACC_PATT_DEF
 };
 struct debug_csr {
     uint64_t read_cnt;
