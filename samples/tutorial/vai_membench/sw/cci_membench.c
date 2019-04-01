@@ -263,6 +263,9 @@ found_prop:
         lat_total += lat;
     }
     printf("lat max: %u, min %u, avg %f\n", lat_max, lat_min, (double)lat_total/status_buf->reccnt);
+    double elapsed_sec = (double)status_buf->n_clk / 400 / 1000000;
+    printf("RD thr: %f MB/s\n", (double)(CL(read_total)) / 1024 / 1024 / elapsed_sec);
+    printf("WR thr: %f MB/s\n", (double)(CL(write_total)) / 1024 / 1024 / elapsed_sec);
     // Done
     for (i=0; i < NUM_BUF; ++i) {
         fpgaReleaseBuffer(accel_handle, wsid[i]);
