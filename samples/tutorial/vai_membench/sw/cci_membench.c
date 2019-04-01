@@ -137,23 +137,15 @@ int main(int argc, char *argv[])
     uint64_t write_total;
     uint64_t csr_properties = 0;
     srand(time(NULL));
-    if (argc < 9) {
-        printf("Usage: %s num_pages([P]age | [C]acheline) read_total([P | C]) write_total([P | C]) Properties(Channelx2 Cache_Hintx2) [RAND|SEQ]\n", argv[0]);
-        printf("\tChannel properties:");
-        for (size_t i=0; i < ARRSIZE(vc_map); ++i) {
-            printf(" %s", vc_map[i].name);
+    if (argc < 10) {
+        printf("Usage: %s num_pages([P]age | [C]acheline) read_total([P | C]) write_total([P | C]) Properties(Channelx2 Cache_Hintx2 Access_Pattern Read_Length)\n", argv[0]);
+        for (size_t i=0; i < ARRSIZE(pmap); ++i) {
+            printf("\t%s:", pmap[i].help_msg);
+            for (size_t j=0; j < pmap[i].pnum; ++j) {
+                printf(" %s", pmap[i].pes[j].name);
+            }
+            putchar('\n');
         }
-        putchar('\n');
-        printf("\tRead Cache Hint properties:");
-        for (size_t i=0; i < ARRSIZE(rd_ch_map); ++i) {
-            printf(" %s", rd_ch_map[i].name);
-        }
-        putchar('\n');
-        printf("\tWrite Cache Hint properties:");
-        for (size_t i=0; i < ARRSIZE(wr_ch_map); ++i) {
-            printf(" %s", wr_ch_map[i].name);
-        }
-        putchar('\n');
         return -1;
     }
     else {
@@ -161,27 +153,17 @@ int main(int argc, char *argv[])
         read_total = cmdarg_getbytes(argv[2]) / CL(1);
         write_total = cmdarg_getbytes(argv[3]) / CL(1);
         // read properties from command line
-        uint64_t vc_property = 0;
-        uint64_t rd_ch_property = 0;
-        uint64_t wr_ch_property = 0;
-        uint64_t acc_patt_property = 0;
-        property_entry_t *property_map[] = {vc_map, rd_ch_map, wr_ch_map, acc_patt_map};
-        size_t entries_num[] = {ARRSIZE(vc_map), ARRSIZE(rd_ch_map), ARRSIZE(wr_ch_map), ARRSIZE(acc_patt_map)};
-        uint64_t *properties[] = {&vc_property, &rd_ch_property, &wr_ch_property, &acc_patt_property};
         for (size_t i=4; i < argc; ++i) {
-            for (size_t j=0; j < ARRSIZE(property_map); ++j) {
-                for (size_t k=0; k < entries_num[j]; ++k) {
-                    if (strcmp(argv[i], property_map[j][k].name) == 0) {
-                        *(properties[j]) |= property_map[j][k].value;
+            for (size_t j=0; j < ARRSIZE(pmap); ++j) {
+                for (size_t k=0; k < pmap[j].pnum; ++k) {
+                    if (strcmp(argv[i], pmap[j].pes[k].name) == 0) {
+                        csr_properties |= pmap[j].pes[k].value;
                         goto found_prop;
                     }
                 }
             }
 found_prop:
             ;
-        }
-        for (size_t i=0; i < ARRSIZE(properties); ++i) {
-            csr_properties |= *(properties[i]);
         }
     }
     // buf[0] is base_addr, buf[1] is status
@@ -237,9 +219,10 @@ found_prop:
             "Write REC_FILTER failed");
     assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_PROPERTIES, csr_properties) == FPGA_OK &&
             "Write PROPERTIES failed");
-    printf("PROPERTIES: %s %s %s %s\n",
+    printf("PROPERTIES: %s %s %s %s %s %s\n",
             GET_RD_VC_N(csr_properties), GET_WR_VC_N(csr_properties),
-            GET_RD_CH_NAME(csr_properties), GET_WR_CH_NAME(csr_properties));
+            GET_RD_CH_NAME(csr_properties), GET_WR_CH_NAME(csr_properties),
+            GET_ACCESS_NAME(csr_properties), GET_RD_LEN_NAME(csr_properties));
     assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_CTL, 1) == FPGA_OK &&
             "Write CSR CTL failed");
     printf("START!!!\n");

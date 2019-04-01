@@ -154,6 +154,7 @@ module `TOP_IFC_NAME
     // Read VA: 0:1, Write VA: 2:3
     // Read Cache Hint: 4:7, Write Cache Hint 8:11
     // Access pattern: 12:12, 0: sequential 1: random
+    // Read Len: 14:13, 0: eCL_LEN_1 1: eCL_LEN_2 2: eCL_LEN_4
     localparam MMIO_CSR_PROPERTIES = 16'h40 >> 2;
     localparam MMIO_CSR_RAND_SEED_0 = 16'h48 >> 2;
     localparam MMIO_CSR_RAND_SEED_1 = 16'h50 >> 2;
@@ -180,8 +181,9 @@ module `TOP_IFC_NAME
     t_ccip_vc read_vc, write_vc;
     t_ccip_c0_req read_hint;
     t_ccip_c1_req write_hint;
-    assign csr_properties = {write_hint[3:0], read_hint[3:0], write_vc[1:0], read_vc[1:0]};
     logic access_pattern; // 0: sequential 1: random
+    logic [1:0]read_type;  // 0: eCL_LEN_1 1: eCL_LEN_2 2: eCL_LEN_4
+    assign csr_properties = {read_type, access_pattern, write_hint[3:0], read_hint[3:0], write_vc[1:0], read_vc[1:0]};
 
     logic [63:0] rand_seed [0:2];
     logic next_valid;
@@ -289,6 +291,8 @@ module `TOP_IFC_NAME
             rand_seed[1] <= DEFAULT_RAND_SEED_1;
             rand_seed[2] <= DEFAULT_RAND_SEED_2;
             csr_ctl_start <= 1'b0;
+            access_pattern <= 0;
+            read_type <= 0;
         end
         else if (is_csr_write)
         begin
@@ -301,6 +305,7 @@ module `TOP_IFC_NAME
                 // Read VA: 0:1, Write VA: 2:3
                 // Read Cache Hint: 4:7, Write Cache Hint 8:11
                 // Access pattern: 12:12, 0: sequential 1: random
+                // Read Len: 14:13, 0: eCL_LEN_1 1: eCL_LEN_2 2: eCL_LEN_4
                 MMIO_CSR_PROPERTIES: begin
                     case (sRx.c0.data[1:0]) // read_vc
                         2'b00: read_vc <= eVC_VA;
@@ -328,6 +333,7 @@ module `TOP_IFC_NAME
                         default: write_hint <= eREQ_WRLINE_I;
                     endcase
                     access_pattern <= sRx.c0.data[12];
+                    read_type <= sRx.c0.data[14:13];
                 end
                 MMIO_CSR_RAND_SEED_0: rand_seed[0] <= sRx.c0.data;
                 MMIO_CSR_RAND_SEED_1: rand_seed[1] <= sRx.c0.data;
@@ -466,28 +472,48 @@ module `TOP_IFC_NAME
         end
         else
         begin
+            should_rec_Q <= (state == STATE_RUN) && (do_read | do_write) && should_rec;
             if (should_rec_Q) begin
-                should_rec_Q <= 0;
                 latbgn[reccnt_Q] <= latbgn_Q;
             end
             case (state)
                 STATE_RUN: begin
-                    if (do_read | do_write) begin
-                        seq_addr <= seq_addr + 1;
-                    end
                     if (do_read) begin
-                        read_cnt <= read_cnt + 1;
+                        case (read_type)
+                            default: begin // eCL_LEN_1
+                                seq_addr <= seq_addr + 1;
+                                read_cnt <= read_cnt + 1;
+                                sTx.c0.hdr.cl_len <= eCL_LEN_1;
+                                sTx.c0.hdr.address <= next_addr;
+                            end
+                            1: begin // eCL_LEN_2
+                                seq_addr <= seq_addr + 2;
+                                read_cnt <= read_cnt + 2;
+                                sTx.c0.hdr.cl_len <= eCL_LEN_2;
+                                sTx.c0.hdr.address <= {next_addr[CCIP_CLADDR_WIDTH-1:1], 1'b0};
+                            end
+                            2: begin // eCL_LEN_4
+                                seq_addr <= seq_addr + 4;
+                                read_cnt <= read_cnt + 4;
+                                sTx.c0.hdr.cl_len <= eCL_LEN_4;
+                                sTx.c0.hdr.address <= {next_addr[CCIP_CLADDR_WIDTH-1:2], 2'b0};
+                            end
+                        endcase
                         sTx.c0.valid <= 1'b1;
                         sTx.c0.hdr.vc_sel <= read_vc;
-                        sTx.c0.hdr.cl_len <= eCL_LEN_1;
                         sTx.c0.hdr.req_type <= read_hint;
-                        sTx.c0.hdr.address <= next_addr;
                         if (should_rec) begin
                             sTx.c0.hdr.mdata <= reccnt;
-                            should_rec_Q <= 1;
                             reccnt_Q <= reccnt;
                             latbgn_Q <= clk_cnt[RECORD_WIDTH-1:0];
-                            reccnt <= reccnt + 1;
+                            case (read_type)
+                                default:
+                                    reccnt <= reccnt + 1;
+                                1:
+                                    reccnt <= reccnt + 2;
+                                2:
+                                    reccnt <= reccnt + 4;
+                            endcase
                         end
                         else begin
                             sTx.c0.hdr.mdata <= RECORD_NUM;
@@ -498,6 +524,7 @@ module `TOP_IFC_NAME
                         sTx.c0.hdr <= t_ccip_c0_ReqMemHdr'(0);
                     end
                     if (do_write) begin
+                        seq_addr <= seq_addr + 1;
                         write_cnt <= write_cnt + 1;
                         sTx.c1.valid <= 1'b1;
                         sTx.c1.hdr.vc_sel <= write_vc;
@@ -508,7 +535,6 @@ module `TOP_IFC_NAME
                         sTx.c1.data <= next_offset;
                         if (should_rec) begin
                             sTx.c1.hdr.mdata <= reccnt;
-                            should_rec_Q <= 1;
                             reccnt_Q <= reccnt;
                             latbgn_Q <= clk_cnt[RECORD_WIDTH-1:0];
                             reccnt <= reccnt + 1;
@@ -576,7 +602,7 @@ module `TOP_IFC_NAME
     /*
      * handle memory read and write response
      */
-    logic [$clog2(RECORD_NUM):0] c0Rx_reccnt_Q, c0Rx_reccnt_QQ, c0Rx_reccnt_QQQ, c1Rx_reccnt_Q, c1Rx_reccnt_QQ, c1Rx_reccnt_QQQ;
+    logic [$clog2(RECORD_NUM):0] c0Rx_reccnt_Q, c0Rx_reccnt_QQ, c0Rx_reccnt_QQQ, c1Rx_reccnt_Q, c1Rx_reccnt_QQ, c1Rx_reccnt_QQQ, c0Rx_base_reccnt_Q;
     logic rdrsp_stage2, rdrsp_stage3, rdrsp_stage4;
     logic wrrsp_stage2, wrrsp_stage3, wrrsp_stage4;
     logic [RECORD_WIDTH-1:0] rdlat, wrlat, rdlatbgn, wrlatbgn;
@@ -638,7 +664,8 @@ module `TOP_IFC_NAME
                 if (c0Rx_reccnt != RECORD_NUM)
                 begin
                     rdrsp_stage2 <= 1;
-                    c0Rx_reccnt_Q <= c0Rx_reccnt;
+                    c0Rx_reccnt_Q <= c0Rx_reccnt + sRx.c0.hdr.cl_num;
+                    c0Rx_base_reccnt_Q <= c0Rx_reccnt;
                 end
                 else
                 begin
@@ -650,7 +677,7 @@ module `TOP_IFC_NAME
                 rdrsp_stage2 <= 0;
             end
             if (rdrsp_stage2) begin
-                rdlatbgn <= latbgn[c0Rx_reccnt_Q]; // intended overflow here
+                rdlatbgn <= latbgn[c0Rx_base_reccnt_Q];
                 c0Rx_reccnt_QQ <= c0Rx_reccnt_Q;
                 rdrsp_stage3 <= 1;
             end
@@ -658,7 +685,7 @@ module `TOP_IFC_NAME
                 rdrsp_stage3 <= 0;
             end
             if (rdrsp_stage3) begin
-                rdlat <= clk_cnt[RECORD_WIDTH-1:0] - rdlatbgn;
+                rdlat <= clk_cnt[RECORD_WIDTH-1:0] - rdlatbgn; // intended overflow here
                 c0Rx_reccnt_QQQ <= c0Rx_reccnt_QQ;
                 rdrsp_stage4 <= 1;
             end
