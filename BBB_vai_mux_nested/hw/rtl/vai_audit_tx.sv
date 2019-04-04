@@ -119,12 +119,12 @@ module vai_audit_tx #(parameter NUM_SUB_AFUS=8)
             always_comb
             begin
                 up_TxPort[n].c0 = T2_c0;
-                up_TxPort[n].c0.hdr.address[33:30] = T2_c0.hdr.address[9:6];
-                up_TxPort[n].c0.hdr.address[9:6] = T2_c0.hdr.address[33:30];;
+                up_TxPort[n].c0.hdr.address[33:30] = T2_c0.hdr.address[18:15];
+                up_TxPort[n].c0.hdr.address[18:15] = T2_c0.hdr.address[33:30];;
 
                 up_TxPort[n].c1 = T2_c1;
-                up_TxPort[n].c1.hdr.address[33:30] = T2_c1.hdr.address[9:6];
-                up_TxPort[n].c1.hdr.address[9:6] = T2_c1.hdr.address[33:30];
+                up_TxPort[n].c1.hdr.address[33:30] = T2_c1.hdr.address[18:15];
+                up_TxPort[n].c1.hdr.address[18:15] = T2_c1.hdr.address[33:30];
 
                 up_TxPort[n].c2 = T2_c2;
             end
