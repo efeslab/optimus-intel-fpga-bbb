@@ -122,6 +122,23 @@ module vai_mux #(NUM_SUB_AFUS=9)
                 .afu_TxPort(adt2mux_TxPort)
                 );
         end
+        else if (NUM_SUB_AFUS == 8)
+        begin
+            nested_mux_8 inst_ccip_mux_nested(
+                .pClk(pClk),
+                .pClkDiv2(pClkDiv2),
+                .SoftReset(reset),
+                .up_Error(up_Error),
+                .up_PwrState(up_PwrState),
+                .up_RxPort(mgr2mux_RxPort), /* we only use this to count packets */
+                .up_TxPort(mux2mgr_TxPort),
+                .afu_SoftReset(adt2afu_SoftReset),
+                .afu_PwrState(afu_PwrState),
+                .afu_Error(afu_Error),
+                .afu_RxPort(mux2adt_RxPort),
+                .afu_TxPort(adt2mux_TxPort)
+                );
+        end
         else
         begin
             ccip_mux_legacy #(
