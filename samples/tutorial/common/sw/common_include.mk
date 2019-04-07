@@ -27,7 +27,7 @@ LDFLAGS +=-z noexecstack
 LDFLAGS +=-z relro -z now
 
 # add by gefei
-#LDFLAGS += -L/usr/local/lib64
+LDFLAGS += -L/usr/local/lib64
 
 # stack buffer overrun detection
 # Note that CentOS 7 has gcc 4.8 by default.  When we switch
@@ -65,8 +65,7 @@ endif
 
 LDFLAGS += -luuid
 
-VAI_GUEST_DIR ?= ../../../../../vai-guest-module/
 FPGA_LIBS = -lopae-c
-FPGA_VAI_LIBS += -L$(VAI_GUEST_DIR) -lvai -I$(VAI_GUEST_DIR)/include
+FPGA_VAI_LIBS += -lvai-c
 ASE_LIBS += -lopae-c-ase
-VAI_ASE_LIBS = -lopae-c-vai-ase
+VAI_ASE_LIBS = -lvai-c-ase
