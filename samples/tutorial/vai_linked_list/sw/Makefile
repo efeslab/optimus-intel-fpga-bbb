@@ -5,7 +5,7 @@ TEST = linked_list_nompf
 
 # Build directory
 OBJDIR = obj
-CFLAGS += -I./$(OBJDIR) -DASE_REGION
+CFLAGS += -I./$(OBJDIR)
 CPPFLAGS += -I./$(OBJDIR)
 
 # Files and folders
@@ -13,7 +13,7 @@ SRCS = $(TEST).c $(BASE_FILE_SRC)
 OBJS = $(addprefix $(OBJDIR)/,$(patsubst %.c,%.o,$(SRCS)))
 
 # Targets
-all: $(TEST) $(TEST)_ase
+all: $(TEST)_vai $(TEST)_vai_ase
 
 # AFU info from JSON file, including AFU UUID
 AFU_JSON_INFO = $(OBJDIR)/afu_json_info.h
