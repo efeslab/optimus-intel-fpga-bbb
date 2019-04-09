@@ -206,7 +206,7 @@ found_prop:
     assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_WRITE_TOTAL, write_total) == FPGA_OK &&
             "Write WRITE_TOTAL failed");
     printf("Read total is %lu, Write total is %lu\n", read_total, write_total);
-    //TODO initialize RANDOM SEED AND PROPERTIES
+    //initialize RANDOM SEED AND PROPERTIES
     uint64_t rand_seed[3] = {RAND64, RAND64, RAND64};
     assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_RAND_SEED_0, rand_seed[0]) == FPGA_OK &&
             "Write RAND_SEED_0 failed");
@@ -223,6 +223,9 @@ found_prop:
             GET_RD_VC_N(csr_properties), GET_WR_VC_N(csr_properties),
             GET_RD_CH_NAME(csr_properties), GET_WR_CH_NAME(csr_properties),
             GET_ACCESS_NAME(csr_properties), GET_RD_LEN_NAME(csr_properties));
+    // FIXME set seq start offset according to VMID
+    assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_SEQ_START_OFFSET, 32) == FPGA_OK &&
+            "Write SEQ_START_OFFSET failed");
     assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_CTL, 1) == FPGA_OK &&
             "Write CSR CTL failed");
     printf("START!!!\n");

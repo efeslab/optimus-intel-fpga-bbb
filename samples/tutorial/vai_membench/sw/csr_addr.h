@@ -35,6 +35,7 @@
 #define MMIO_CSR_RAND_SEED_2 0x58
 #define MMIO_CSR_REPORT_ADDR 0x60
 #define MMIO_CSR_REC_FILTER 0x68
+#define MMIO_CSR_SEQ_START_OFFSET 0x70
 // properties
 // Read VA: 0:1, Write VA: 2:3
 // Read Cache Hint: 4:7, Write Cache Hint 8:11

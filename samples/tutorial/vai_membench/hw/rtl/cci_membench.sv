@@ -162,6 +162,7 @@ module `TOP_IFC_NAME
     localparam MMIO_CSR_STATUS_ADDR = 16'h60 >> 2;
     // filter out the latency of accesses to which pages will be recorded
     localparam MMIO_CSR_REC_FILTER = 16'h68 >> 2;
+    localparam MMIO_CSR_SEQ_START_OFFSET = 16'h70 >> 2;
     //------------------ Default value--------------------
     // Memory address to which this AFU will write.
     localparam DEFAULT_CSR_MEM_BASE = t_ccip_clAddr'(0);
@@ -170,13 +171,14 @@ module `TOP_IFC_NAME
     localparam DEFAULT_RAND_SEED_2 = 64'h39e8e59c761c69c6;
     localparam RECFILTER_WIDTH = 10;
     localparam PAGE_IDX_WIDTH = 6;
+    localparam RW_CNT_WIDTH = 32;
     t_ccip_clAddr base_addr, report_addr, status_addr;
     assign report_addr = (status_addr + 1);
     logic [31:0] len_mask;
     logic [RECFILTER_WIDTH - 1:0] rec_filter;
     logic [63:0] clk_cnt;
-    logic [63:0] read_cnt,  rdrsp_cnt, read_total;
-    logic [63:0] write_cnt, wrrsp_cnt, write_total;
+    logic [RW_CNT_WIDTH-1:0] read_cnt,  rdrsp_cnt, read_total;
+    logic [RW_CNT_WIDTH-1:0] write_cnt, wrrsp_cnt, write_total;
     logic [63:0] csr_properties;
     t_ccip_vc read_vc, write_vc;
     t_ccip_c0_req read_hint;
@@ -187,12 +189,14 @@ module `TOP_IFC_NAME
 
     logic [63:0] rand_seed [0:2];
     logic next_valid;
+    logic [31:0] seq_start_addr;
 
     localparam CSR_TS_IDLE = 2'h0;
     localparam CSR_TS_RUNNING = 2'h1;
     localparam CSR_TS_DONE = 2'h2;
     logic [1:0] csr_ts_state;
     logic csr_ctl_start;
+    // explicitly use one more bit as sentinel
     logic [$clog2(RECORD_NUM):0] reccnt, report_reccnt, c0Rx_reccnt, c1Rx_reccnt;
     logic report_done, finish_done; // finish_done is set after write complete bit
     typedef enum logic [1:0]
@@ -262,10 +266,10 @@ module `TOP_IFC_NAME
                     sTx.c2.data[63:32] <= report_reccnt;
                 end
                 MMIO_CSR_RDRSP_CNT: begin
-                    sTx.c2.data[63:0] <= t_ccip_mmioData'(rdrsp_cnt);
+                    sTx.c2.data <= t_ccip_mmioData'(rdrsp_cnt);
                 end
                 MMIO_CSR_WRRSP_CNT: begin
-                    sTx.c2.data[63:0] <= t_ccip_mmioData'(wrrsp_cnt);
+                    sTx.c2.data <= t_ccip_mmioData'(wrrsp_cnt);
                 end
                 default: sTx.c2.data <= t_ccip_mmioData'(0);
             endcase
@@ -293,6 +297,7 @@ module `TOP_IFC_NAME
             csr_ctl_start <= 1'b0;
             access_pattern <= 0;
             read_type <= 0;
+            seq_start_addr <= 0;
         end
         else if (is_csr_write)
         begin
@@ -340,6 +345,7 @@ module `TOP_IFC_NAME
                 MMIO_CSR_RAND_SEED_2: rand_seed[2] <= sRx.c0.data;
                 MMIO_CSR_STATUS_ADDR: status_addr <= t_ccip_clAddr'(sRx.c0.data);
                 MMIO_CSR_CTL: csr_ctl_start <= sRx.c0.data[0];
+                MMIO_CSR_SEQ_START_OFFSET: seq_start_addr <= sRx.c0.data[31:0];
                 default:
                 begin
                     csr_ctl_start <= 1'b0;
@@ -361,6 +367,7 @@ module `TOP_IFC_NAME
     // =========================================================================
 
     logic read_done, write_done, can_read, can_write, do_read, do_write, rdrsp_done, wrrsp_done;
+    logic do_read_Q, do_write_Q;
     //
     // State machine
     //
@@ -416,8 +423,6 @@ module `TOP_IFC_NAME
         rdrsp_done <= (rdrsp_cnt >= read_cnt);
         wrrsp_done <= (wrrsp_cnt >= write_cnt);
     end
-    //assign read_done = (read_cnt >= read_total);
-    //assign write_done = (write_cnt >= write_total);
     assign can_read = (!sRx.c0TxAlmFull) && (!read_done);
     assign can_write = (!sRx.c1TxAlmFull) && (!write_done);
     assign do_read = next_valid && can_read && !(can_write && rw_priority);
@@ -428,6 +433,17 @@ module `TOP_IFC_NAME
     begin
         if (reset) begin rw_priority <= 1'b0; end
         else begin rw_priority <= rw_priority? !do_write: do_read; end
+    end
+    always_ff @(posedge clk)
+    begin
+        if (reset) begin
+            do_read_Q <= 0;
+            do_write_Q <= 0;
+        end
+        else begin
+            do_read_Q <= do_read;
+            do_write_Q <= do_write;
+        end
     end
     // record latenct per request
     localparam RECORD_NUM = 64;
@@ -450,8 +466,6 @@ module `TOP_IFC_NAME
     logic should_rec_Q;
     logic [$clog2(RECORD_NUM):0] reccnt_Q, report_reccnt_Q;
     logic [RECORD_WIDTH-1:0] latbgn_Q;
-    // bookkeeping sequential access next addr
-    logic [31:0] seq_addr;
     /*
      * send memory read and write requests
      */
@@ -459,16 +473,15 @@ module `TOP_IFC_NAME
     begin
         if (reset)
         begin
-            read_cnt <= 64'h0;
-            write_cnt <= 64'h0;
-            sTx.c0.valid <= 1'b0;
+            read_cnt <= 0;
+            write_cnt <= 0;
+            sTx.c0.valid <= 0;
             reccnt <= 0;
-            sTx.c1.valid <= 1'b0;
+            sTx.c1.valid <= 0;
             report_reccnt <= 0;
             should_rec_Q <= 0;
             report_stage_2 <= 0;
             finish_done <= 0;
-            seq_addr <= 0;
         end
         else
         begin
@@ -478,22 +491,19 @@ module `TOP_IFC_NAME
             end
             case (state)
                 STATE_RUN: begin
-                    if (do_read) begin
+                    if (do_read_Q) begin
                         case (read_type)
                             default: begin // eCL_LEN_1
-                                seq_addr <= seq_addr + 1;
                                 read_cnt <= read_cnt + 1;
                                 sTx.c0.hdr.cl_len <= eCL_LEN_1;
                                 sTx.c0.hdr.address <= next_addr;
                             end
                             1: begin // eCL_LEN_2
-                                seq_addr <= seq_addr + 2;
                                 read_cnt <= read_cnt + 2;
                                 sTx.c0.hdr.cl_len <= eCL_LEN_2;
                                 sTx.c0.hdr.address <= {next_addr[CCIP_CLADDR_WIDTH-1:1], 1'b0};
                             end
                             2: begin // eCL_LEN_4
-                                seq_addr <= seq_addr + 4;
                                 read_cnt <= read_cnt + 4;
                                 sTx.c0.hdr.cl_len <= eCL_LEN_4;
                                 sTx.c0.hdr.address <= {next_addr[CCIP_CLADDR_WIDTH-1:2], 2'b0};
@@ -523,8 +533,7 @@ module `TOP_IFC_NAME
                         sTx.c0.valid <= 1'b0;
                         sTx.c0.hdr <= t_ccip_c0_ReqMemHdr'(0);
                     end
-                    if (do_write) begin
-                        seq_addr <= seq_addr + 1;
+                    if (do_write_Q) begin
                         write_cnt <= write_cnt + 1;
                         sTx.c1.valid <= 1'b1;
                         sTx.c1.hdr.vc_sel <= write_vc;
@@ -722,6 +731,33 @@ module `TOP_IFC_NAME
         .random(random32_Q),
         .valid(next_valid_Q)
     );
+    // bookkeeping sequential access next addr
+    logic [31:0] seq_addr;
+    always_ff @(posedge clk) begin
+        if (state == STATE_IDLE)
+            seq_addr <= seq_start_addr;
+        else if (state == STATE_RUN) begin
+            if (do_read) begin
+                case (read_type)
+                    default: begin // eCL_LEN_1
+                        seq_addr <= seq_addr + 1;
+                    end
+                    1: begin // eCL_LEN_2
+                        seq_addr <= seq_addr + 2;
+                    end
+                    2: begin // eCL_LEN_4
+                        seq_addr <= seq_addr + 4;
+                    end
+                endcase
+            end
+            else if (do_write) begin
+                seq_addr <= seq_addr + 1;
+            end
+        end
+        else begin
+            seq_addr <= seq_addr;
+        end
+    end
     always_ff @(posedge clk) begin
         if (reset) begin
             xor_reset <= 1;
@@ -734,7 +770,7 @@ module `TOP_IFC_NAME
                 0: begin // sequential
                     next_offset <= seq_addr & len_mask;
                     next_addr <= base_addr + (seq_addr & len_mask);
-                    next_valid <= 1;
+                    next_valid <= (state == STATE_RUN);
                 end
                 1: begin // random
                     next_offset <= random32_Q & len_mask;
