@@ -34,22 +34,19 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
-#ifdef ORIG_ASE
 #include <uuid/uuid.h>
+#ifdef ORIG_ASE
 #include <opae/fpga.h>
 #else
-#include <vai/vai.h>
+#include <vai/fpga.h>
 #endif //ORIG_ASE
+#include <vai/wrapper.h>
 // State from the AFU's JSON file, extracted using OPAE's afu_json_mgr script
 #include "afu_json_info.h"
-
-//RO
-#define MMIO_CSR_CNT_LIST_LENGTH 0x018
-#define MMIO_CSR_CNT_DATA_ENTRIES 0x020
-//WO
-#define MMIO_CSR_RESULT_ADDR 0x028
-#define MMIO_CSR_START_ADDR 0x030
+#include "csr_addr.h"
+#include "report.h"
 
 uint64_t total = 0;
 //
@@ -61,16 +58,8 @@ uint64_t total = 0;
 struct t_linked_list
 {
     struct t_linked_list* next;
-    uint64_t pad_next[7];
-
-    uint64_t v0;
-    uint64_t pad0[7];
-
-    uint64_t v1;
-    uint64_t pad1[7];
-
-    uint64_t v2;
-    uint64_t pad2[7];
+    uint64_t v;
+    uint64_t pad_next[6];
 };
 
 //
@@ -81,30 +70,34 @@ struct t_linked_list
 // Both head and spacing_bytes must be cache-line aligned.
 //
 struct t_linked_list* initList(struct t_linked_list* head,
-                        uint64_t n_entries,
-                        uint64_t spacing_bytes)
+                        uint64_t n_entries)
 {
     struct t_linked_list* p = head;
     uint64_t v = 1;
-
-    for (int i = 0; i < n_entries; i += 1)
+    uint64_t *shuffle = (uint64_t*)malloc(n_entries * sizeof(uint64_t));
+    for (uint64_t i = 0; i < n_entries; ++i) shuffle[i] = i;
+    for (int i = 1; i < n_entries; i += 1)
     {
-        p->v0 = v++;
-        p->v1 = v++;
-        p->v2 = v++;
-		total += p->v0 + p->v1 + p->v2;
+        uint64_t next_shuffle_idx = i + (rand() % (n_entries - i));
+        uint64_t tmp = shuffle[i];
+        shuffle[i] = shuffle[next_shuffle_idx];
+        shuffle[next_shuffle_idx] = tmp;
+        struct t_linked_list* p_next = head + shuffle[i];
+        p->v = v++;
+        total += p->v;
 
-        struct t_linked_list* p_next = (struct t_linked_list*)((char*)p + spacing_bytes);
-        p->next = (i+1 < n_entries) ? p_next : NULL;
+        p->next = p_next;
 
         p = p_next;
     }
+    p->v = v++;
+    total += p->v;
+    p->next = NULL;
 
-	__sync_synchronize();
+    __sync_synchronize();
     return head;
 }
 
-#ifdef ORIG_ASE
 //
 // Search for an accelerator matching the requested UUID and connect to it.
 //
@@ -172,64 +165,74 @@ static volatile void* alloc_buffer(fpga_handle accel_handle,
 
     return buf;
 }
-#endif // ORIG_ASE
 struct t_result {
-	uint64_t done;
-	uint64_t result;
-	uint64_t clk_cnt;
+    uint64_t done;
+    uint64_t result;
+    uint64_t clk_cnt;
 };
 
 int main(int argc, char *argv[])
 {
-	// parse command line
-	uint64_t n_entries = 0;
-	uint64_t unitsize = 0;
-	if (argc < 3) {
-		fprintf(stderr, "%s length unitsize\n", argv[0]);
-		return -1;
-	}
-	else {
-		int len = strlen(argv[2]);
-		n_entries = atoi(argv[1]);
-		unitsize = atoi(argv[2]);
-		switch (argv[2][len-1]) {
-			case 'K':
-			case 'k':
-				unitsize *= 1024;
-				break;
-			case 'M':
-			case 'm':
-				unitsize *= 1024*1024;
-				break;
-			default:
-				fprintf(stderr, "wrong units\n");
-				return -1;
-		}
-		assert(sizeof(struct t_linked_list) <= unitsize);
-	}
+    // randomize
+    struct timespec tp;
+    clock_gettime(CLOCK_MONOTONIC_RAW, &tp);
+    srand(tp.tv_nsec);
+    // parse command line
+    uint64_t n_entries = 0;
+    uint64_t totalsize = 0;
+    uint64_t csr_properties = 0;
+    if (argc < 3) {
+        fprintf(stderr, "%s totalsize READ_VC\n", argv[0]);
+        for (size_t i=0; i < ARRSIZE(pmap); ++i) {
+            fprintf(stderr, "\t%s:", pmap[i].help_msg);
+            for (size_t j=0; j < pmap[i].pnum; ++j) {
+                fprintf(stderr, " %s", pmap[i].pes[j].name);
+            }
+            fputc('\n', stderr);
+        }
+        return -1;
+    }
+    else {
+        int len = strlen(argv[1]);
+        totalsize = atoll(argv[1]);
+        switch (argv[1][len-1]) {
+            case 'K':
+            case 'k':
+                totalsize *= 1024;
+                break;
+            case 'M':
+            case 'm':
+                totalsize *= 1024*1024;
+                break;
+            default:
+                fprintf(stderr, "wrong units\n");
+                return -1;
+        }
+        n_entries = totalsize / sizeof(struct t_linked_list);
+        for (size_t i=2; i < argc; ++i) {
+            for (size_t j=0; j < ARRSIZE(pmap); ++j) {
+                for (size_t k=0; k < pmap[j].pnum; ++k) {
+                    if (strcmp(argv[i], pmap[j].pes[k].name) == 0) {
+                        csr_properties |= pmap[j].pes[k].value;
+                        goto found_prop;
+                    }
+                }
+            }
+found_prop:
+            ;
+        }
+    }
     // Find and connect to the accelerator
-#ifdef ORIG_ASE
-	fpga_handle accel_handle;
-	uint64_t result_wsid;
-	accel_handle = connect_to_accel(AFU_ACCEL_UUID);
-#else
-	struct vai_afu_conn *conn = vai_afu_connect();
-#endif
+    fpga_handle accel_handle;
+    uint64_t result_wsid;
+    accel_handle = connect_to_accel(AFU_ACCEL_UUID);
     // Allocate a memory buffer for storing the result.  Unlike the hello
     // world examples, here we do not need the physical address of the
     // buffer.  The accelerator instantiates MPF's VTP and will use
     // virtual addresses.
-	uint64_t result_bufpa;
+    uint64_t result_bufpa;
     volatile struct t_result* result_buf;
-#ifdef ORIG_ASE
-	result_buf = (volatile struct t_result*)alloc_buffer(accel_handle, getpagesize(), &result_wsid, &result_bufpa);
-#elif defined(ASE_REGION)
-	vai_afu_alloc_region(conn, (void**)&result_buf, 0, getpagesize());
-	result_bufpa = (uint64_t) result_buf;
-#else
-	result_buf = (volatile struct t_result*)vai_afu_malloc(conn, getpagesize());
-	result_bufpa = (uint64_t) result_buf;
-#endif
+    result_buf = (volatile struct t_result*)alloc_buffer(accel_handle, getpagesize(), &result_wsid, &result_bufpa);
     assert(NULL != result_buf);
 
     // Set the low word of the shared buffer to 0.  The FPGA will write
@@ -237,12 +240,8 @@ int main(int argc, char *argv[])
     result_buf->done = 0;
 
     // Set the result buffer pointer
-#ifdef ORIG_ASE
-	assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_RESULT_ADDR, result_bufpa / CL(1)) == FPGA_OK &&
-		  "write result addr failed");
-#else
-	assert(vai_afu_mmio_write(conn, MMIO_CSR_RESULT_ADDR, result_bufpa / CL(1)) == 0);
-#endif
+    assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_RESULT_ADDR, result_bufpa / CL(1)) == FPGA_OK &&
+          "write result addr failed");
 
     // Allocate a 16MB buffer and share it with the FPGA.  Because the FPGA
     // is using VTP we can allocate a virtually contiguous region.
@@ -251,70 +250,81 @@ int main(int argc, char *argv[])
     // be composed of physically discontiguous pages.  VTP will construct
     // a private TLB to map virtual addresses from this process to FPGA-side
     // physical addresses.
-	uint64_t list_wsid;
-	uint64_t list_bufpa;
-    volatile char * list_buf;
-#ifdef ORIG_ASE
-	list_buf = (volatile char*)alloc_buffer(accel_handle, unitsize * n_entries + CL(4), &list_wsid, &list_bufpa);
-#elif defined(ASE_REGION)
-	assert(vai_afu_alloc_region(conn, (void**)&list_buf, 0, (unitsize * n_entries + getpagesize())&(~0xfffL)) == 0);
-	list_bufpa = (uint64_t) list_buf;
-#else
-	list_buf = (volatile char*)vai_afu_malloc(conn, unitsize * n_entries + CL(4));
-	list_bufpa = (uint64_t) list_buf;
-#endif
-	list_buf = (volatile char*)(((uint64_t)list_buf + (CL(4) - 1)) & (~0xffL));
-	list_bufpa = (list_bufpa + (CL(4) - 1)) & (~0xffL);
+    uint64_t list_wsid;
+    uint64_t list_bufpa;
+    volatile char *list_buf;
+    list_buf = (volatile char*)alloc_buffer(accel_handle, totalsize, &list_wsid, &list_bufpa);
+    // No need to align to CL(4) since each entry is only CL(1) now
+    // list_buf = (volatile char*)(((uint64_t)list_buf + (CL(4) - 1)) & (~0xffL));
+    // list_bufpa = (list_bufpa + (CL(4) - 1)) & (~0xffL);
     assert(NULL != list_buf);
 
     // Initialize a linked list in the buffer
-    initList((struct t_linked_list*)(list_buf), n_entries, unitsize);
+    initList((struct t_linked_list*)(list_buf), n_entries);
+
+    // allocate pages for snapshot
+    uint64_t snpst_wsid;
+    uint64_t snpst_bufpa;
+    volatile char *snpst_buf;
+    uint64_t state_szpgs;
+    assert(fpgaReadMMIO64(accel_handle, 0, MMIO_CSR_STATE_SIZE_PG, &state_szpgs) == FPGA_OK);
+    snpst_buf = (volatile char*)alloc_buffer(accel_handle, state_szpgs * getpagesize(), &snpst_wsid, &snpst_bufpa);
+    snpst_bufpa = (uint64_t) snpst_buf;
+    assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_SNAPSHOT_ADDR, snpst_bufpa / CL(1)) == FPGA_OK);
 
     // Start the FPGA, which is waiting for the list head in CSR 1.
-#ifdef ORIG_ASE
-	assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_START_ADDR, list_bufpa / CL(1)) == FPGA_OK &&
-			"write list addr failed");
-#else
-	assert(vai_afu_mmio_write(conn, MMIO_CSR_START_ADDR, list_bufpa / CL(1)) == 0);
-#endif
+    assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_PROPERTIES, csr_properties) == FPGA_OK &&
+            "set csr properties failed");
+    assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_START_ADDR, list_bufpa / CL(1)) == FPGA_OK &&
+            "write list addr failed");
+    assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_TRANSACTION_CTL, tsctlSTART_NEW) == FPGA_OK &&
+            "TRANSACTION_CTL start new failed");
 
-
-    while (0 == result_buf->done)
+    // try pause
+    struct debug_csr dc;
+    while (1)
     {
         usleep(500000);
-    };
+        assert(get_debug_csr(accel_handle, &dc) == 0);
+        print_csr(&dc);
+        if (result_buf->done) // if job finished, quit
+            break;
+        // periodically pause then resume
+        uint64_t tsstate;
+        assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_TRANSACTION_CTL, tsctlPAUSE) == 0);
+        while (1) {
+            fpgaReadMMIO64(accel_handle, 0, MMIO_CSR_TRANSACTION_STATE, &tsstate);
+            printf("state while waiting for pause: %ld\n", tsstate);
+            if (tsstate == tsPAUSED)
+                break;
+            usleep(500000);
+        }
+        // pause completed
+        assert(fpgaReset(accel_handle) == FPGA_OK);
+        usleep(5000);
+        // try to resume instantly
+        assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_SNAPSHOT_ADDR, snpst_bufpa / CL(1)) == 0);
+        assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_PROPERTIES, csr_properties) == 0);
+        assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_START_ADDR, list_bufpa / CL(1)) == 0);
+        assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_RESULT_ADDR, result_bufpa / CL(1)) == 0);
+        assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_TRANSACTION_CTL, tsctlSTART_RESUME) == 0);
+    }
 
     // Hash is stored in result_buf[1]
     uint64_t r = result_buf->result;
-	printf("Hash: %#lx, Soft: %#lx [%s]\n", r, total, (total==r)?"Correct":"ERROR");
+    printf("Hash: %#lx, Soft: %#lx [%s]\n", r, total, (total==r)?"Correct":"ERROR");
 
     // Reads CSRs to get some statistics
-	uint64_t cnt_list_length;
-	uint64_t cnt_data_entries;
-#ifdef ORIG_ASE
-	assert(fpgaReadMMIO64(accel_handle, 0, MMIO_CSR_CNT_LIST_LENGTH, &cnt_list_length) == FPGA_OK);
-	assert(fpgaReadMMIO64(accel_handle, 0, MMIO_CSR_CNT_DATA_ENTRIES, &cnt_data_entries) == FPGA_OK);
-#else
-	assert(vai_afu_mmio_read(conn, MMIO_CSR_CNT_LIST_LENGTH, &cnt_list_length) == 0);
-	assert(vai_afu_mmio_read(conn, MMIO_CSR_CNT_DATA_ENTRIES, &cnt_data_entries) == 0);
-#endif
+    uint64_t cnt_list_length;
+    assert(fpgaReadMMIO64(accel_handle, 0, MMIO_CSR_CNT_LIST_LENGTH, &cnt_list_length) == FPGA_OK);
 
-    printf("# List length: %lu,\n# Linked list data entries read: %lu\n", cnt_list_length, cnt_data_entries);
+    printf("# List length: %lu\n", cnt_list_length);
 
     // All shared buffers are automatically released and the FPGA connection
     // is closed when their destructors are invoked here.
-#ifdef ORIG_ASE
-	fpgaReleaseBuffer(accel_handle, result_wsid);
-	fpgaReleaseBuffer(accel_handle, list_wsid);
-	fpgaClose(accel_handle);
-#elif defined(ASE_REGION)
-	vai_afu_free_region(conn, result_buf);
-	vai_afu_free_region(conn, list_buf);
-	vai_afu_disconnect(conn);
-#else
-	vai_afu_free(conn, result_buf);
-	vai_afu_free(conn, list_buf);
-	vai_afu_disconnect(conn);
-#endif
+    fpgaReleaseBuffer(accel_handle, result_wsid);
+    fpgaReleaseBuffer(accel_handle, list_wsid);
+    fpgaReleaseBuffer(accel_handle, snpst_wsid);
+    fpgaClose(accel_handle);
     return 0;
 }

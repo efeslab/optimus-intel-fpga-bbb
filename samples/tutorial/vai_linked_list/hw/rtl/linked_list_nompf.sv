@@ -30,6 +30,7 @@
 
 `include "platform_if.vh"
 `include "afu_json_info.vh"
+`include "vai_timeslicing.vh"
 `ifdef WITH_MUX
     `define TOP_IFC_NAME `AFU_WITHMUX_NAME
 `else
@@ -119,22 +120,30 @@ module `TOP_IFC_NAME
     t_ccip_c0_ReqMmioHdr mmio_req_hdr;
     assign mmio_req_hdr = t_ccip_c0_ReqMmioHdr'(sRx.c0.hdr);
 
-	function automatic logic ccip_c0Rx_isReadRsp(input t_if_ccip_c0_Rx r);
-		return r.rspValid && (r.hdr.resp_type == eRSP_RDLINE);
-	endfunction
+    function automatic logic ccip_c0Rx_isReadRsp(input t_if_ccip_c0_Rx r);
+        return r.rspValid && (r.hdr.resp_type == eRSP_RDLINE);
+    endfunction
     //
     // MMIO reads.
     //
 
-	//RO
-	localparam MMIO_CSR_CNT_LIST_LENGTH = 16'h018 >> 2;
-	localparam MMIO_CSR_CNT_DATA_ENTRIES = 16'h020 >> 2;
-	//WO
-	localparam MMIO_CSR_RESULT_ADDR = 16'h028 >> 2;
-	localparam MMIO_CSR_START_ADDR = 16'h030 >> 2;
+    // RO
+    localparam MMIO_CSR_CNT_LIST_LENGTH = `TSCSR_USR(16'h0);
+    localparam MMIO_CSR_CLK_CNT = `TSCSR_USR(16'h8);
+    // WO
+    localparam MMIO_CSR_RESULT_ADDR = `TSCSR_USR(16'h18);
+    localparam MMIO_CSR_START_ADDR = `TSCSR_USR(16'h20);
+    localparam STATE_SIZE_PG = 1;
+    // RW
+    // Read VA: 0:1
+    localparam MMIO_CSR_PROPERTIES = `TSCSR_USR(16'h28);
 
-	logic [15:0] cnt_list_length;
-	logic [15:0] cnt_data_entries;
+    logic [63:0] clk_cnt;
+    logic [31:0] cnt_list_length;
+    t_transaction_state ts_state;
+    t_ccip_vc read_vc;
+    t_ccip_mmioData csr_properties;
+    assign csr_properties = {62'h0, read_vc};
     always_ff @(posedge clk)
     begin
         if (reset)
@@ -161,7 +170,7 @@ module `TOP_IFC_NAME
                     sTx.c2.data[63:60] <= 4'h1;
                     // End of list (last entry in list)
                     sTx.c2.data[40] <= 1'b1;
-					sTx.c2.data[11:0] <= `AFU_IMAGE_VAI_MAGIC;
+                    sTx.c2.data[11:0] <= `AFU_IMAGE_VAI_MAGIC;
                 end
 
               // AFU_ID_L
@@ -170,16 +179,16 @@ module `TOP_IFC_NAME
               // AFU_ID_H
               4: sTx.c2.data <= afu_id[127:64];
 
-              // DFH_RSVD0
-              6: sTx.c2.data <= t_ccip_mmioData'(0);
-
-              // DFH_RSVD1
-              8: sTx.c2.data <= t_ccip_mmioData'(0);
-
-			  MMIO_CSR_CNT_LIST_LENGTH:
-				  sTx.c2.data <= t_ccip_mmioData'(cnt_list_length);
-			  MMIO_CSR_CNT_DATA_ENTRIES:
-				  sTx.c2.data <= t_ccip_mmioData'(cnt_data_entries);
+              MMIO_CSR_TRANSACTION_STATE:
+                  sTx.c2.data <= t_ccip_mmioData'(ts_state);
+              MMIO_CSR_STATE_SIZE_PG:
+                  sTx.c2.data <= t_ccip_mmioData'(STATE_SIZE_PG);
+              MMIO_CSR_CNT_LIST_LENGTH:
+                  sTx.c2.data <= t_ccip_mmioData'(cnt_list_length);
+              MMIO_CSR_PROPERTIES:
+                  sTx.c2.data <= t_ccip_mmioData'(csr_properties);
+              MMIO_CSR_CLK_CNT:
+                  sTx.c2.data <= t_ccip_mmioData'(clk_cnt);
 
               default: sTx.c2.data <= t_ccip_mmioData'(0);
             endcase
@@ -191,31 +200,72 @@ module `TOP_IFC_NAME
     // CSR write handling.  Host software must tell the AFU the memory address
     // to which it should be writing.  The address is set by writing a CSR.
     //
-
+    typedef struct packed {
+        logic [63:0] clk_cnt;
+        t_ccip_clAddr traversal_addr;
+        logic [31:0] checksum;
+        logic [31:0] cnt_list_length;
+    } t_snapshot;
     t_ccip_clAddr start_traversal_addr;
-	t_ccip_clAddr result_addr;
-	logic start_traversal;
-	always_ff @(posedge clk)
-	begin
-		if (is_csr_write)
-		begin
-			case (mmio_req_hdr.address)
-				MMIO_CSR_START_ADDR:
-				begin
-					start_traversal_addr <= t_ccip_clAddr'(sRx.c0.data);
-					start_traversal <= 1'b1;
-				end
-				MMIO_CSR_RESULT_ADDR:
-				begin
-					result_addr <= t_ccip_clAddr'(sRx.c0.data);
-				end
-				default:
-					start_traversal <= 1'b0;
-			endcase
-		end
-		else
-			start_traversal <= 1'b0;
-	end
+    t_ccip_clAddr snapshot_addr;
+    t_ccip_clAddr resumed_traversal_addr;
+    t_ccip_clAddr result_addr;
+    t_snapshot snapshot_resumed;
+    t_snapshot snapshot_toresume;
+    assign resumed_traversal_addr = snapshot_resumed.traversal_addr;
+    logic start_traversal;
+    logic resume_traversal;
+    logic pause_traversal;
+    always_ff @(posedge clk)
+    begin
+        if (is_csr_write)
+        begin
+            case (mmio_req_hdr.address)
+                MMIO_CSR_TRANSACTION_CTL:
+                    case (t_transaction_ctl'(sRx.c0.data))
+                        tsctlSTART_NEW:
+                            start_traversal <= 1;
+                        tsctlSTART_RESUME:
+                            resume_traversal <= 1;
+                        tsctlPAUSE:
+                            pause_traversal <= 1;
+                        default: begin
+                            start_traversal <= 0;
+                            resume_traversal <= 0;
+                            pause_traversal <= 0;
+                        end
+                    endcase
+                MMIO_CSR_SNAPSHOT_ADDR: begin
+                    snapshot_addr <= t_ccip_clAddr'(sRx.c0.data);
+                end
+                MMIO_CSR_START_ADDR:
+                begin
+                    start_traversal_addr <= t_ccip_clAddr'(sRx.c0.data);
+                end
+                MMIO_CSR_RESULT_ADDR:
+                begin
+                    result_addr <= t_ccip_clAddr'(sRx.c0.data);
+                end
+                MMIO_CSR_PROPERTIES: begin
+                    case (sRx.c0.data[1:0]) // read_vc
+                        2'b00: read_vc <= eVC_VA;
+                        2'b01: read_vc <= eVC_VL0;
+                        2'b10: read_vc <= eVC_VH0;
+                    endcase
+                end
+                default: begin
+                    start_traversal <= 0;
+                    resume_traversal <= 0;
+                    pause_traversal <= 0;
+                end
+            endcase
+        end
+        else begin
+            start_traversal <= 0;
+            resume_traversal <= 0;
+            pause_traversal <= 0;
+        end
+    end
 
 
     // =========================================================================
@@ -224,11 +274,13 @@ module `TOP_IFC_NAME
     //
     // =========================================================================
 
-    typedef enum logic [1:0]
+    typedef enum logic [2:0]
     {
         STATE_IDLE,
+        STATE_RESUME,
         STATE_RUN,
         STATE_END_OF_LIST,
+        STATE_PAUSE,
         STATE_WRITE_RESULT
     }
     t_state;
@@ -237,27 +289,47 @@ module `TOP_IFC_NAME
     // Status signals that affect state changes
     logic rd_end_of_list;
     logic rd_last_beat_received;
+    logic resume_complete, pause_complete, write_complete;
 
     always_ff @(posedge clk)
     begin
         if (reset)
         begin
             state <= STATE_IDLE;
+            ts_state <= tsIDLE;
+            clk_cnt <= 0;
         end
         else
         begin
             case (state)
-              STATE_IDLE:
+                STATE_IDLE:
                 begin
                     // Traversal begins when CSR 1 is written
                     if (start_traversal)
                     begin
                         state <= STATE_RUN;
+                        ts_state <= tsRUNNING;
                         $display("AFU starting traversal at 0x%x", start_traversal_addr);
+                    end
+                    else if (resume_traversal)
+                    begin
+                        state <= STATE_RESUME;
+                        ts_state <= tsRUNNING;
+                        $display("AFU resume traversal from snapshot 0x%x", snapshot_addr);
                     end
                 end
 
-              STATE_RUN:
+                STATE_RESUME:
+                begin
+                    if (resume_complete)
+                    begin
+                        state <= STATE_RUN;
+                        clk_cnt <= snapshot_resumed.clk_cnt;
+                        $display("AFU resumed traversal, start from 0x%x", resumed_traversal_addr);
+                    end
+                end
+
+                STATE_RUN:
                 begin
                     // rd_end_of_list is set when the "next" pointer
                     // in the linked list is NULL.
@@ -266,9 +338,15 @@ module `TOP_IFC_NAME
                         state <= STATE_END_OF_LIST;
                         $display("AFU reached end of list");
                     end
+                    if (pause_traversal)
+                    begin
+                        state <= STATE_PAUSE;
+                        $display("AFU starts pausing");
+                    end
+                    clk_cnt <= clk_cnt + 1;
                 end
 
-              STATE_END_OF_LIST:
+                STATE_END_OF_LIST:
                 begin
                     // The NULL pointer indicating the list end has been
                     // reached.  When the remainder of the record containing
@@ -280,17 +358,26 @@ module `TOP_IFC_NAME
                         $display("AFU write result to 0x%x", result_addr);
                     end
                 end
-
-              STATE_WRITE_RESULT:
+                STATE_PAUSE:
+                begin
+                    if (pause_complete)
+                    begin
+                        state <= STATE_IDLE;
+                        ts_state <= tsPAUSED;
+                        $display("AFU paused completely");
+                    end
+                end
+                STATE_WRITE_RESULT:
                 begin
                     // The end of the list has been reached.  The AFU must
                     // write the computed hash to result_addr.  It is the
                     // only memory write the AFU will request.  The write
                     // will be triggered as soon as the pipeline can
                     // accept requests.
-                    if (! sRx.c1TxAlmFull)
+                    if (write_complete)
                     begin
                         state <= STATE_IDLE;
+                        ts_state <= tsFINISH;
                         $display("AFU done");
                     end
                 end
@@ -315,6 +402,16 @@ module `TOP_IFC_NAME
 
     // When a read response contains a next pointer, this is the next address.
     t_ccip_clAddr addr_next;
+    t_ccip_clAddr current_addr;
+    always_ff @(posedge clk)
+    begin
+        if (state == STATE_RUN)
+        current_addr <= (
+            start_traversal ? start_traversal_addr :
+            (resume_complete ? resumed_traversal_addr :
+            (addr_next_valid ? addr_next :
+            current_addr)));
+    end
 
     always_ff @(posedge clk)
     begin
@@ -366,8 +463,8 @@ module `TOP_IFC_NAME
                 //   - Starting a new walk
                 //   - A read response just arrived from a line containing
                 //     a next pointer.
-                rd_needed <= (start_traversal || (addr_next_valid && ! rd_end_of_list));
-                rd_addr <= (start_traversal ? start_traversal_addr : addr_next);
+                rd_needed <= (start_traversal || resume_complete || (addr_next_valid && ! rd_end_of_list));
+                rd_addr <= (start_traversal ? start_traversal_addr : (resume_complete ? resumed_traversal_addr : addr_next));
             end
         end
     end
@@ -377,42 +474,48 @@ module `TOP_IFC_NAME
     // Emit read requests to the FIU.
     //
 
-    // Read header defines the request to the FIU
-    t_ccip_c0_ReqMemHdr rd_hdr;
-
-    always_comb
-    begin
-        rd_hdr = t_ccip_c0_ReqMemHdr'(0);
-
-        // Read request type
-        rd_hdr.req_type = eREQ_RDLINE_I;
-        // Virtual address (MPF virtual addressing is enabled)
-        rd_hdr.address = rd_addr;
-        // Let the FIU pick the channel
-        rd_hdr.vc_sel = eVC_VA;
-        // Read 4 lines (the size of an entry in the list)
-        rd_hdr.cl_len = eCL_LEN_4;
-    end
-
+    logic resume_rdreq_sent;
     // Send read requests to the FIU
     always_ff @(posedge clk)
     begin
         if (reset)
         begin
             sTx.c0.valid <= 1'b0;
+            sTx.c0.hdr <= t_ccip_c0_ReqMmioHdr'(0);
             cnt_list_length <= 0;
+            resume_rdreq_sent <= 0;
         end
         else
         begin
-            // Generate a read request when needed and the FIU isn't full
-            sTx.c0.valid <= (rd_needed && ! sRx.c0TxAlmFull);
-            sTx.c0.hdr <= rd_hdr;
-
-            if (rd_needed && ! sRx.c0TxAlmFull)
-            begin
-                cnt_list_length <= cnt_list_length + 1;
-                $display("  Reading from VA 0x%x", rd_addr);
-            end
+            resume_rdreq_sent <= sRx.c0TxAlmFull? resume_complete: (state == STATE_RESUME);
+            case (state)
+                STATE_RUN: begin
+                    // Generate a read request when needed and the FIU isn't full
+                    sTx.c0.valid <= (rd_needed && !sRx.c0TxAlmFull);
+                    sTx.c0.hdr.req_type <= eREQ_RDLINE_I;
+                    sTx.c0.hdr.address <= rd_addr;
+                    sTx.c0.hdr.vc_sel <= read_vc;
+                    sTx.c0.hdr.cl_len <= eCL_LEN_1;
+                    if (rd_needed && ! sRx.c0TxAlmFull)
+                    begin
+                        cnt_list_length <= cnt_list_length + 1;
+                        $display("  Reading from VA 0x%x", rd_addr);
+                    end
+                end
+                STATE_RESUME: begin
+                    if (resume_complete) begin
+                        cnt_list_length <= snapshot_resumed.cnt_list_length;
+                    end
+                    sTx.c0.valid <= (!sRx.c0TxAlmFull && !resume_rdreq_sent);
+                    sTx.c0.hdr.req_type <= eREQ_RDLINE_I;
+                    sTx.c0.hdr.address <= snapshot_addr;
+                    sTx.c0.hdr.vc_sel <= read_vc;
+                    sTx.c0.hdr.cl_len <= eCL_LEN_1;
+                end
+                default: begin
+                    sTx.c0.valid <= 0;
+                end
+            endcase
         end
     end
 
@@ -436,18 +539,30 @@ module `TOP_IFC_NAME
     //
     always_ff @(posedge clk)
     begin
-        // A read response is data if the cl_num is non-zero.  (When cl_num
-        // is zero the response is a pointer to the next record.)
-        hash_data_en <= (ccip_c0Rx_isReadRsp(sRx.c0) &&
-                         (sRx.c0.hdr.cl_num != t_ccip_clNum'(0)));
-        hash_data <= sRx.c0.data[63:0];
-        hash_cl_num <= sRx.c0.hdr.cl_num;
+        if (reset) begin
+            resume_complete <= 0;
+        end
+        else begin
+            resume_complete <= (state == STATE_RESUME) && ccip_c0Rx_isReadRsp(sRx.c0);
+            case (state)
+                STATE_RUN: begin
+                    // A read response is data if the cl_num is non-zero.  (When cl_num
+                    // is zero the response is a pointer to the next record.)
+                    hash_data_en <= (ccip_c0Rx_isReadRsp(sRx.c0));
+                    hash_data <= sRx.c0.data[127:64];
 
-        if (ccip_c0Rx_isReadRsp(sRx.c0) &&
-            (sRx.c0.hdr.cl_num != t_ccip_clNum'(0)))
-        begin
-            $display("    Received entry v%0d: %0d",
-                     sRx.c0.hdr.cl_num, sRx.c0.data[63:0]);
+                    if (ccip_c0Rx_isReadRsp(sRx.c0))
+                    begin
+                        $display("    Received entry v%0d: %0d",
+                            sRx.c0.hdr.cl_num, sRx.c0.data[127:64]);
+                    end
+                end
+                STATE_RESUME: begin
+                    if (ccip_c0Rx_isReadRsp(sRx.c0)) begin
+                        snapshot_resumed <= t_snapshot'(sRx.c0.data);
+                    end
+                end
+            endcase
         end
     end
 
@@ -456,50 +571,36 @@ module `TOP_IFC_NAME
     // Signal completion of reading a line.  The state machine consumes this
     // to transition from END_OF_LIST to WRITE_RESULT.
     //
-	logic [31:0] total_cacheline;
-	always_ff @(posedge clk)
-	begin
-		if (reset || start_traversal)
-			total_cacheline <= 32'h4;
-		else if (addr_next_valid && !rd_end_of_list)
-			total_cacheline <= total_cacheline + 4;
-	end
-	logic [31:0] total_received;
-	always_ff @(posedge clk)
-	begin
-		if (reset || start_traversal)
-			total_received <= 32'h0;
-		else if (ccip_c0Rx_isReadRsp(sRx.c0))
-			total_received <= total_received + 1;
-	end
+    logic [31:0] total_cacheline;
+    always_ff @(posedge clk)
+    begin
+        if (reset || start_traversal)
+            total_cacheline <= 32'h1;
+        else if (addr_next_valid && !rd_end_of_list)
+            total_cacheline <= total_cacheline + 1;
+    end
+    logic [31:0] total_received;
+    always_ff @(posedge clk)
+    begin
+        if (reset || start_traversal)
+            total_received <= 32'h0;
+        else if (ccip_c0Rx_isReadRsp(sRx.c0))
+            total_received <= total_received + 1;
+    end
     assign rd_last_beat_received = (total_received == total_cacheline);
     //
     // Compute a hash of the received data.
     //
     logic [63:0] checksum;
-	always_ff @(posedge clk)
-	begin
-		if (reset || start_traversal)
-			checksum <= 64'h0;
-		else if (hash_data_en)
-			checksum <= checksum + hash_data;
-	end
-
-    //
-    // Count the number of fields read and added to the hash.
-    //
     always_ff @(posedge clk)
     begin
         if (reset || start_traversal)
-        begin
-            cnt_data_entries <= 0;
-        end
+            checksum <= 64'h0;
+        else if (state == STATE_RESUME && resume_complete)
+            checksum <= snapshot_resumed.checksum;
         else if (hash_data_en)
-        begin
-            cnt_data_entries <= cnt_data_entries + 1;
-        end
+            checksum <= checksum + hash_data;
     end
-
 
     // =========================================================================
     //
@@ -527,26 +628,68 @@ module `TOP_IFC_NAME
         wr_hdr.sop = 1'b1;
     end
 
-    // Data to write to memory.  The low word is a non-zero flag.  The
-    // CPU-side software will spin, waiting for this flag.  The computed
-    // hash is written in the 2nd 64 bit word.
-    assign sTx.c1.data = t_ccip_clData'({ checksum, 64'h1 });
 
+    assign snapshot_toresume.traversal_addr = current_addr;
+    assign snapshot_toresume.checksum = checksum;
+    assign snapshot_toresume.clk_cnt = clk_cnt;
+    assign snapshot_toresume.cnt_list_length = cnt_list_length;
+    logic pause_write_req_sent, write_result_req_sent;
     // Control logic for memory writes
     always_ff @(posedge clk)
     begin
         if (reset)
         begin
             sTx.c1.valid <= 1'b0;
+            sTx.c1.hdr <= t_ccip_c1_ReqMemHdr'(0);
+            pause_write_req_sent <= 0;
+            write_result_req_sent <= 0;
         end
         else
         begin
+            sTx.c1.hdr.req_type = eREQ_WRLINE_I;
+            sTx.c1.hdr.vc_sel = eVC_VL0;
+            sTx.c1.hdr.cl_len = eCL_LEN_1;
+            sTx.c1.hdr.sop = 1;
             // Request the write as long as the channel isn't full.
-            sTx.c1.valid <= ((state == STATE_WRITE_RESULT) &&
-                                   ! sRx.c1TxAlmFull);
+            case (state)
+                STATE_PAUSE:
+                begin
+                    pause_write_req_sent <= sRx.c1TxAlmFull? pause_write_req_sent: 1;
+                    sTx.c1.hdr.address <= snapshot_addr;
+                    sTx.c1.data <= t_ccip_clData'(snapshot_toresume);
+                    sTx.c1.valid <= (!sRx.c1TxAlmFull && !pause_write_req_sent);
+                end
+                STATE_WRITE_RESULT:
+                begin
+                    write_result_req_sent <= sRx.c1TxAlmFull? write_result_req_sent: 1;
+                    sTx.c1.hdr.address <= result_addr;
+                    // Data to write to memory.  The low word is a non-zero flag.  The
+                    // CPU-side software will spin, waiting for this flag.  The computed
+                    // hash is written in the 2nd 64 bit word.
+                    sTx.c1.data <= t_ccip_clData'({checksum, 64'h1});
+                    sTx.c1.valid <= (!sRx.c1TxAlmFull && !write_result_req_sent);
+                end
+                default: begin
+                    pause_write_req_sent <= 0;
+                    write_result_req_sent <= 0;
+                    sTx.c1.valid <= 0;
+                end
+            endcase
         end
 
-        sTx.c1.hdr <= wr_hdr;
     end
-
+    // handle write response
+    always_ff @(posedge clk)
+    begin
+        if (reset)
+        begin
+            pause_complete <= 0;
+            write_complete <= 0;
+        end
+        else
+        begin
+            pause_complete <= (state == STATE_PAUSE) && (sRx.c1.rspValid);
+            write_complete <= (state == STATE_WRITE_RESULT) && (sRx.c1.rspValid);
+        end
+    end
 endmodule
