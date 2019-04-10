@@ -190,6 +190,7 @@ module `TOP_IFC_NAME
     logic [63:0] rand_seed [0:2];
     logic next_valid;
     logic [31:0] seq_start_addr;
+    logic [31:0] seq_rd_inc;
 
     localparam CSR_TS_IDLE = 2'h0;
     localparam CSR_TS_RUNNING = 2'h1;
@@ -339,6 +340,14 @@ module `TOP_IFC_NAME
                     endcase
                     access_pattern <= sRx.c0.data[12];
                     read_type <= sRx.c0.data[14:13];
+                    case (sRx.c0.data[14:13])
+                            default: // eCL_LEN_1
+                                seq_rd_inc <= 1;
+                            1: // eCL_LEN_2
+                                seq_rd_inc <= 2;
+                            2: // eCL_LEN_4
+                                seq_rd_inc <= 4;
+                    endcase
                 end
                 MMIO_CSR_RAND_SEED_0: rand_seed[0] <= sRx.c0.data;
                 MMIO_CSR_RAND_SEED_1: rand_seed[1] <= sRx.c0.data;
@@ -485,7 +494,7 @@ module `TOP_IFC_NAME
         end
         else
         begin
-            should_rec_Q <= (state == STATE_RUN) && (do_read | do_write) && should_rec;
+            should_rec_Q <= (state == STATE_RUN) && (do_read_Q | do_write_Q) && should_rec;
             if (should_rec_Q) begin
                 latbgn[reccnt_Q] <= latbgn_Q;
             end
@@ -738,24 +747,11 @@ module `TOP_IFC_NAME
             seq_addr <= seq_start_addr;
         else if (state == STATE_RUN) begin
             if (do_read) begin
-                case (read_type)
-                    default: begin // eCL_LEN_1
-                        seq_addr <= seq_addr + 1;
-                    end
-                    1: begin // eCL_LEN_2
-                        seq_addr <= seq_addr + 2;
-                    end
-                    2: begin // eCL_LEN_4
-                        seq_addr <= seq_addr + 4;
-                    end
-                endcase
+                seq_addr <= seq_addr + seq_rd_inc;
             end
             else if (do_write) begin
                 seq_addr <= seq_addr + 1;
             end
-        end
-        else begin
-            seq_addr <= seq_addr;
         end
     end
     always_ff @(posedge clk) begin
