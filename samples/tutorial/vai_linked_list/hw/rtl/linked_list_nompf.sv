@@ -203,7 +203,7 @@ module `TOP_IFC_NAME
     typedef struct packed {
         logic [63:0] clk_cnt;
         t_ccip_clAddr traversal_addr;
-        logic [31:0] checksum;
+        logic [63:0] checksum;
         logic [31:0] cnt_list_length;
     } t_snapshot;
     t_ccip_clAddr start_traversal_addr;
@@ -504,7 +504,7 @@ module `TOP_IFC_NAME
                 end
                 STATE_RESUME: begin
                     if (resume_complete) begin
-                        cnt_list_length <= snapshot_resumed.cnt_list_length;
+                        cnt_list_length <= snapshot_resumed.cnt_list_length - 1;
                     end
                     sTx.c0.valid <= (!sRx.c0TxAlmFull && !resume_rdreq_sent);
                     sTx.c0.hdr.req_type <= eREQ_RDLINE_I;
