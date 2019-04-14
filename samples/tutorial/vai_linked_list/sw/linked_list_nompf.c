@@ -319,6 +319,7 @@ found_prop:
     assert(fpgaReadMMIO64(accel_handle, 0, MMIO_CSR_CNT_LIST_LENGTH, &cnt_list_length) == FPGA_OK);
 
     printf("# List length: %lu\n", cnt_list_length);
+    printf("# total clk_cnt: %lu\n", result_buf->clk_cnt);
 
     // All shared buffers are automatically released and the FPGA connection
     // is closed when their destructors are invoked here.

@@ -666,7 +666,7 @@ module `TOP_IFC_NAME
                     // Data to write to memory.  The low word is a non-zero flag.  The
                     // CPU-side software will spin, waiting for this flag.  The computed
                     // hash is written in the 2nd 64 bit word.
-                    sTx.c1.data <= t_ccip_clData'({checksum, 64'h1});
+                    sTx.c1.data <= t_ccip_clData'({clk_cnt, checksum, 64'h1});
                     sTx.c1.valid <= (!sRx.c1TxAlmFull && !write_result_req_sent);
                 end
                 default: begin
