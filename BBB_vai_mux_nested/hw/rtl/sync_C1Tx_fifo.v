@@ -66,6 +66,7 @@
 module sync_C1Tx_fifo #(parameter DATA_WIDTH      =51,
                         CTL_WIDTH       =0,           // control data width
                         DEPTH_BASE2     =3, 
+                        DEPTH           =8,
                         GRAM_STYLE      =`GRAM_AUTO,
                         GRAM_MODE       =3,        // Uses registered RAM outputs. Write to Read Data out Lantecy = 2clks
                         FULL_THRESH     =0          // fifo_almFull will be asserted if there are more entries than FULL_THRESH
@@ -117,7 +118,7 @@ reg     [DEPTH_BASE2-1:0]       bram_raddr_next;
 reg     [DEPTH_BASE2-1:0]       bram_raddr_d;
 (* `NO_RETIMING *)              reg                         dram_v;
 (* maxfan=150 *)                reg     [DEPTH_BASE2-1:0]   bram_waddr, bram_raddr;
-(* ramstyle = "logic" *)        reg     [CTL_WIDTH:0]       ctl_reg    [2**DEPTH_BASE2-1:0];
+(* ramstyle = "logic" *)        reg     [CTL_WIDTH:0]       ctl_reg    [DEPTH-1:0];
 (* `NO_RETIMING, maxfan=7 *)    reg     [DEPTH_BASE2:0]     bram_count;
 (* `NO_RETIMING, `NO_MERGE *)   reg                         bram_rena;
 (* `NO_RETIMING, `NO_MERGE *)   reg                         bram_renb;

@@ -116,6 +116,7 @@ localparam L_C0TX_FULL_THRESH = 2**L_C0TX_FIFO_DEPTH - CCIP_TX_ALMOST_FULL_THRES
         .DATA_WIDTH  ( CCIP_C0TX_HDR_WIDTH),
         .CTL_WIDTH   ( 0                  ),
         .DEPTH_BASE2 ( L_C0TX_FIFO_DEPTH  ),
+        .DEPTH       ( 2**L_C0TX_FIFO_DEPTH ),
         .GRAM_MODE   ( 3                  ),               // uses optional output register. Dout 2 clks behin Control/Dout_v
         .FULL_THRESH ( L_C0TX_FULL_THRESH )                // fifo_almFull will be asserted if there are more entries than FULL_THRESH
         )
@@ -254,6 +255,7 @@ localparam L_C0TX_FULL_THRESH = 2**L_C0TX_FIFO_DEPTH - CCIP_TX_ALMOST_FULL_THRES
         .DATA_WIDTH  ( CCIP_C1TX_HDR_WIDTH+CCIP_CLDATA_WIDTH ),
         .CTL_WIDTH   ( 1 ),
         .DEPTH_BASE2 ( L_C1TX_FIFO_DEPTH  ),
+        .DEPTH       ( 2**L_C1TX_FIFO_DEPTH ),
         .GRAM_MODE   ( 3 ),
         .FULL_THRESH ( L_C1TX_FULL_THRESH )                // fifo_almFull will be asserted if there are more entries than FULL_THRESH
         )
