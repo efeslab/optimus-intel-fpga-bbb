@@ -33,12 +33,43 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
     always @(posedge clk)
     begin
         reset <= pck_cp2af_softReset;
-        reset_r <= ~pck_cp2af_softReset;
+        reset_r <= ~reset;
     end
 
     /* T0: connect to ccip */
     t_if_ccip_Rx T0_Rx;
     assign T0_Rx = pck_cp2af_sRx;
+
+    /* packet counter */
+    logic sRx_c0_valid_T1, sRx_c1_valid_T1;
+    logic sTx_c0_valid_T1, sTx_c1_valid_T1;
+
+    always_ff @(posedge clk)
+    begin
+        sRx_c0_valid_T1 <= afu_RxPort.c0.rspValid;
+        sRx_c1_valid_T1 <= afu_RxPort.c1.rspValid;
+        sTx_c0_valid_T1 <= afu_TxPort.c0.valid;
+        sTx_c1_valid_T1 <= afu_TxPort.c1.valid;
+    end
+
+    logic [63:0] sRx_c0_cnt, sRx_c1_cnt, sTx_c0_cnt, sTx_c1_cnt;
+    always_ff @(posedge clk)
+    begin
+        if (reset)
+        begin
+            sRx_c0_cnt <= 0;
+            sRx_c1_cnt <= 0;
+            sTx_c0_cnt <= 0;
+            sTx_c1_cnt <= 0;
+        end
+        else
+        begin
+            sRx_c0_cnt <= sRx_c0_cnt + sRx_c0_valid_T1;
+            sRx_c1_cnt <= sRx_c1_cnt + sRx_c1_valid_T1;
+            sTx_c0_cnt <= sTx_c0_cnt + sTx_c0_valid_T1;
+            sTx_c1_cnt <= sTx_c1_cnt + sTx_c1_valid_T1;
+        end
+    end
 
 
     /* T1: register */
@@ -79,6 +110,10 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
     logic T2_is_id_lo;
     logic T2_is_id_hi;
     logic T2_is_nafus;
+    logic T2_is_rxc0_cnt;
+    logic T2_is_rxc1_cnt;
+    logic T2_is_txc0_cnt;
+    logic T2_is_txc1_cnt;
     logic T2_is_read;
     logic T2_is_write;
     logic T2_is_ctl_mmio;
@@ -117,6 +152,11 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
             T2_is_id_hi <= (T1_mmio_req_hdr.address == 4);
             T2_is_reset <= (T1_mmio_req_hdr.address == 6);
             T2_is_nafus <= (T1_mmio_req_hdr.address == 8);
+
+            T2_is_rxc0_cnt <= (T1_mmio_req_hdr.address == 'h100 >>2);
+            T2_is_rxc1_cnt <= (T1_mmio_req_hdr.address == 'h108 >>2);
+            T2_is_txc0_cnt <= (T1_mmio_req_hdr.address == 'h110 >>2);
+            T2_is_txc1_cnt <= (T1_mmio_req_hdr.address == 'h108 >>2);
 
             T2_is_read <= T1_is_mmio_read;
             T2_is_write <= T1_is_mmio_write;
@@ -193,6 +233,22 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
                 begin
                     T3_Tx_c2.data <= mgr_id[127:64];
                 end
+                else if (T2_is_rxc0_cnt)
+                begin
+                    T3_Tx_c2.data <= sRx_c0_cnt;
+                end
+                else if (T2_is_rxc1_cnt)
+                begin
+                    T3_Tx_c2.data <= sRx_c1_cnt;
+                end
+                else if (T2_is_txc0_cnt)
+                begin
+                    T3_Tx_c2.data <= sTx_c0_cnt;
+                end
+                else if (T2_is_txc1_cnt)
+                begin
+                    T3_Tx_c2.data <= sTx_c1_cnt;
+                end
                 else
                 begin
                     T3_Tx_c2.data <= 64'hffffffffffffffff;
@@ -245,9 +301,9 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
 		.DATA_WIDTH($bits(t_if_ccip_c0_Tx)),
 		.CTL_WIDTH(0),
 		.DEPTH_BASE2($clog2(16)),
-        .DEPTH(10),
+        .DEPTH(16),
 		.GRAM_MODE(3),
-		.FULL_THRESH(10-8)
+		.FULL_THRESH(16-8)
 	)
 	inst_fifo_c0tx(
 		.Resetb(reset_r),
@@ -285,9 +341,9 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
 		.DATA_WIDTH($bits(t_if_ccip_c1_Tx)),
 		.CTL_WIDTH(0),
 		.DEPTH_BASE2($clog2(16)),
-        .DEPTH(10),
+        .DEPTH(16),
 		.GRAM_MODE(3),
-		.FULL_THRESH(10-8)
+		.FULL_THRESH(16-8)
 	)
 	inst_fifo_c1tx(
 		.Resetb(reset_r),
@@ -325,6 +381,7 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
 		.DATA_WIDTH($bits(t_if_ccip_c2_Tx)),
 		.CTL_WIDTH(0),
 		.DEPTH_BASE2($clog2(4)),
+        .DEPTH(4),
 		.GRAM_MODE(3),
 		.FULL_THRESH(2)
 	)
