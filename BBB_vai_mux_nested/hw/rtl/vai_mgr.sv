@@ -156,7 +156,7 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
             T2_is_rxc0_cnt <= (T1_mmio_req_hdr.address == 'h100 >>2);
             T2_is_rxc1_cnt <= (T1_mmio_req_hdr.address == 'h108 >>2);
             T2_is_txc0_cnt <= (T1_mmio_req_hdr.address == 'h110 >>2);
-            T2_is_txc1_cnt <= (T1_mmio_req_hdr.address == 'h108 >>2);
+            T2_is_txc1_cnt <= (T1_mmio_req_hdr.address == 'h118 >>2);
 
             T2_is_read <= T1_is_mmio_read;
             T2_is_write <= T1_is_mmio_write;
