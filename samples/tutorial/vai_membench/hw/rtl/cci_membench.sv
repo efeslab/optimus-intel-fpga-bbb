@@ -31,11 +31,11 @@
 `include "platform_if.vh"
 `include "afu_json_info.vh"
 `ifdef WITH_MUX
-    `define TOP_IFC_NAME `AFU_WITHMUX_NAME
+    `define MEMBENCH_TOP_IFC_NAME `MEMBENCH_WITHMUX_NAME
 `else
-    `define TOP_IFC_NAME `AFU_NOMUX_NAME
+    `define MEMBENCH_TOP_IFC_NAME `MEMBENCH_NOMUX_NAME
 `endif
-module `TOP_IFC_NAME
+module `MEMBENCH_TOP_IFC_NAME
    (
     // CCI-P Clocks and Resets
     input           logic             pClk,              // 400MHz - CCI-P clock domain. Primary interface clock
