@@ -515,3 +515,144 @@ assign afu_RxPort[7] = out_12_rx[1];
 assign out_12_tx[1] = afu_TxPort[7];
 
 endmodule
+
+module nested_mux_4
+(
+    input   wire                    pClk,
+    input   wire                    pClkDiv2,
+    /* upstream ports */
+    input   wire                    SoftReset,                          // upstream reset
+    input   wire                    up_Error,
+    input   wire [1:0]              up_PwrState,
+    input   t_if_ccip_Rx            up_RxPort,                          // upstream Rx response port
+    output  t_if_ccip_Tx            up_TxPort,                          // upstream Tx request port
+    /* downstream ports */
+    output  logic                   afu_SoftReset [3:0],
+    output  logic [1:0]             afu_PwrState  [3:0],
+    output  logic                   afu_Error     [3:0],
+    output  t_if_ccip_Rx            afu_RxPort    [3:0],        // downstream Rx response AFU
+    input   t_if_ccip_Tx            afu_TxPort    [3:0]         // downstream Tx request  AFU
+
+);
+
+logic link_0_1_softreset;
+logic link_0_1_error;
+logic [1:0] link_0_1_pwrstate;
+t_if_ccip_Rx link_0_1_rx;
+t_if_ccip_Tx link_0_1_tx;
+logic out_1_softreset[1:0];
+logic [1:0] out_1_pwrstate[1:0];
+logic out_1_error[1:0];
+t_if_ccip_Rx out_1_rx[1:0];
+t_if_ccip_Tx out_1_tx[1:0];
+logic link_0_4_softreset;
+logic link_0_4_error;
+logic [1:0] link_0_4_pwrstate;
+t_if_ccip_Rx link_0_4_rx;
+t_if_ccip_Tx link_0_4_tx;
+logic out_4_softreset[1:0];
+logic [1:0] out_4_pwrstate[1:0];
+logic out_4_error[1:0];
+t_if_ccip_Rx out_4_rx[1:0];
+t_if_ccip_Tx out_4_tx[1:0];
+logic out_0_softreset[1:0];
+logic [1:0] out_0_pwrstate[1:0];
+logic out_0_error[1:0];
+t_if_ccip_Rx out_0_rx[1:0];
+t_if_ccip_Tx out_0_tx[1:0];
+assign link_0_1_softreset = out_0_softreset[0];
+assign link_0_1_error = out_0_error[0];
+assign link_0_1_pwrstate = out_0_pwrstate[0];
+assign link_0_1_rx = out_0_rx[0];
+assign out_0_tx[0] = link_0_1_tx;
+assign link_0_4_softreset = out_0_softreset[1];
+assign link_0_4_error = out_0_error[1];
+assign link_0_4_pwrstate = out_0_pwrstate[1];
+assign link_0_4_rx = out_0_rx[1];
+assign out_0_tx[1] = link_0_4_tx;
+ccip_mux_legacy #(
+    .NUM_SUB_AFUS(2),
+    .NUM_PIPE_STAGES(0)
+)
+mux_1(
+    .pClk(pClk),
+    .pClkDiv2(pClkDiv2),
+    .SoftReset(link_0_1_softreset),
+    .up_Error(link_0_1_error),
+    .up_PwrState(link_0_1_pwrstate),
+    .up_RxPort(link_0_1_rx),
+    .up_TxPort(link_0_1_tx),
+    .afu_SoftReset(out_1_softreset[1:0]),
+    .afu_PwrState(out_1_pwrstate[1:0]),
+    .afu_Error(out_1_error[1:0]),
+    .afu_RxPort(out_1_rx[1:0]),
+    .afu_TxPort(out_1_tx[1:0])
+    );
+
+ccip_mux_legacy #(
+    .NUM_SUB_AFUS(2),
+    .NUM_PIPE_STAGES(0)
+)
+mux_4(
+    .pClk(pClk),
+    .pClkDiv2(pClkDiv2),
+    .SoftReset(link_0_4_softreset),
+    .up_Error(link_0_4_error),
+    .up_PwrState(link_0_4_pwrstate),
+    .up_RxPort(link_0_4_rx),
+    .up_TxPort(link_0_4_tx),
+    .afu_SoftReset(out_4_softreset[1:0]),
+    .afu_PwrState(out_4_pwrstate[1:0]),
+    .afu_Error(out_4_error[1:0]),
+    .afu_RxPort(out_4_rx[1:0]),
+    .afu_TxPort(out_4_tx[1:0])
+    );
+
+ccip_mux_legacy #(
+    .NUM_SUB_AFUS(2),
+    .NUM_PIPE_STAGES(0)
+)
+mux_0(
+    .pClk(pClk),
+    .pClkDiv2(pClkDiv2),
+    .SoftReset(SoftReset),
+    .up_Error(up_Error),
+    .up_PwrState(up_PwrState),
+    .up_RxPort(up_RxPort),
+    .up_TxPort(up_TxPort),
+    .afu_SoftReset(out_0_softreset[1:0]),
+    .afu_PwrState(out_0_pwrstate[1:0]),
+    .afu_Error(out_0_error[1:0]),
+    .afu_RxPort(out_0_rx[1:0]),
+    .afu_TxPort(out_0_tx[1:0])
+    );
+
+/* port0 afu1 */
+assign afu_SoftReset[0] = out_1_softreset[0];
+assign afu_PwrState[0] = out_1_pwrstate[0];
+assign afu_Error[0] = out_1_error[0];
+assign afu_RxPort[0] = out_1_rx[0];
+assign out_1_tx[0] = afu_TxPort[0];
+
+/* port1 afu2 */
+assign afu_SoftReset[1] = out_1_softreset[1];
+assign afu_PwrState[1] = out_1_pwrstate[1];
+assign afu_Error[1] = out_1_error[1];
+assign afu_RxPort[1] = out_1_rx[1];
+assign out_1_tx[1] = afu_TxPort[1];
+
+/* port2 afu4 */
+assign afu_SoftReset[2] = out_4_softreset[0];
+assign afu_PwrState[2] = out_4_pwrstate[0];
+assign afu_Error[2] = out_4_error[0];
+assign afu_RxPort[2] = out_4_rx[0];
+assign out_4_tx[0] = afu_TxPort[2];
+
+/* port3 afu5 */
+assign afu_SoftReset[3] = out_4_softreset[1];
+assign afu_PwrState[3] = out_4_pwrstate[1];
+assign afu_Error[3] = out_4_error[1];
+assign afu_RxPort[3] = out_4_rx[1];
+assign out_4_tx[1] = afu_TxPort[3];
+
+endmodule
