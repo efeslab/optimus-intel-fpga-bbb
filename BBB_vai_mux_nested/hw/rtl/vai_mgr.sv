@@ -19,7 +19,8 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
     input     		t_if_ccip_Tx	  afu_TxPort,		 	// from mux tx port
 
     output  logic [63:0]            offset_array    [NUM_SUB_AFUS-1:0],  // to tx auditor
-    output  logic [63:0]            sub_afu_reset
+    output  logic [63:0]            sub_afu_reset,
+    input   logic [63:0]             up_async_error
 );
 
     localparam LNUM_SUB_AFUS = $clog2(NUM_SUB_AFUS);
@@ -28,12 +29,14 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
 
     logic clk;
     logic reset=1, reset_r=0;
+    logic [63:0] up_async_error_q;
     assign clk = pClk;
 
     always @(posedge clk)
     begin
         reset <= pck_cp2af_softReset;
         reset_r <= ~reset;
+        up_async_error_q <= up_async_error;
     end
 
     /* T0: connect to ccip */
@@ -114,6 +117,7 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
     logic T2_is_rxc1_cnt;
     logic T2_is_txc0_cnt;
     logic T2_is_txc1_cnt;
+    logic T2_is_async_err;
     logic T2_is_read;
     logic T2_is_write;
     logic T2_is_ctl_mmio;
@@ -157,6 +161,7 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
             T2_is_rxc1_cnt <= (T1_mmio_req_hdr.address == 'h108 >>2);
             T2_is_txc0_cnt <= (T1_mmio_req_hdr.address == 'h110 >>2);
             T2_is_txc1_cnt <= (T1_mmio_req_hdr.address == 'h118 >>2);
+            T2_is_async_err <= (T1_mmio_req_hdr.address == 'h130 >>2);
 
             T2_is_read <= T1_is_mmio_read;
             T2_is_write <= T1_is_mmio_write;
@@ -248,6 +253,10 @@ module vai_mgr # (parameter NUM_SUB_AFUS=8)
                 else if (T2_is_txc1_cnt)
                 begin
                     T3_Tx_c2.data <= sTx_c1_cnt;
+                end
+                else if (T2_is_async_err)
+                begin
+                    T3_Tx_c2.data <= up_async_error_q;
                 end
                 else
                 begin

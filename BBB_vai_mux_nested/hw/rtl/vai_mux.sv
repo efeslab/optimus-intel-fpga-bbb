@@ -15,8 +15,9 @@ module vai_mux #(NUM_SUB_AFUS=9)
     output  logic [1:0]             afu_PwrState  [NUM_SUB_AFUS-1:0],
     output  logic                   afu_Error     [NUM_SUB_AFUS-1:0],
     output  t_if_ccip_Rx            afu_RxPort    [NUM_SUB_AFUS-1:0],        // downstream Rx response AFU
-    input   t_if_ccip_Tx            afu_TxPort    [NUM_SUB_AFUS-1:0]         // downstream Tx request  AFU
+    input   t_if_ccip_Tx            afu_TxPort    [NUM_SUB_AFUS-1:0],         // downstream Tx request  AFU
 
+    input   logic [63:0]             up_async_error
 );
 
     /* fanout SoftReset */
@@ -61,6 +62,12 @@ module vai_mux #(NUM_SUB_AFUS=9)
         .offset_array(offset_array_T1)
         );
 
+    logic [63:0] up_async_error_q;
+    always_ff @(posedge pClk)
+    begin
+        up_async_error_q <= up_async_error;
+    end
+
     // mgr
     vai_mgr #(
         .NUM_SUB_AFUS(NUM_SUB_AFUS)
@@ -79,7 +86,8 @@ module vai_mux #(NUM_SUB_AFUS=9)
 		.afu_RxPort(mgr2mux_RxPort),
 		.afu_TxPort(mux2mgr_TxPort), 
         .offset_array(offset_array),
-        .sub_afu_reset(afu_vai_reset)
+        .sub_afu_reset(afu_vai_reset),
+        .up_async_error(up_async_error_q)
         );
 
     always_ff @(posedge pClk)
