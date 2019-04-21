@@ -1,0 +1,6 @@
+linked_list_cci.json
+
+C:../../../base/hw/rtl/base_sources.txt
+
++incdir+.
+linked_list_cci.sv
