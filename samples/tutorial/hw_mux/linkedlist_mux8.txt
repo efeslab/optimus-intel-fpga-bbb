@@ -1,0 +1,2 @@
+C:mux8.txt
+C:/srv/nfs/vai-intel-fpga-bbb/samples/tutorial/vai_linked_list/hw/rtl/sources.txt

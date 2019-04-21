@@ -1,0 +1,2 @@
+C:mux3.txt
+C:/srv/nfs/vai-intel-fpga-bbb/samples/tutorial/vai_membench/hw/rtl/sources.txt

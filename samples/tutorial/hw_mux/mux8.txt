@@ -1,0 +1,5 @@
+QI:par.qsf
++define+NUM_AFUS=8
++define+WITH_MUX
+cci_mux_test.json
+cci_mux_test.sv
