@@ -371,6 +371,7 @@ module `MEMBENCH_TOP_IFC_NAME
         logic[63:0] clk_cnt;
         logic[RW_CNT_WIDTH-1:0] rdrsp_cnt;
         logic[RW_CNT_WIDTH-1:0] wrrsp_cnt;
+        logic[31:0] seq_addr;
     } t_snapshot;
     t_snapshot snapshot_resumed;
     t_snapshot snapshot_toresume;
@@ -828,24 +829,30 @@ module `MEMBENCH_TOP_IFC_NAME
     );
     // bookkeeping sequential access next addr
     logic [31:0] seq_addr;
+    assign snapshot_toresume.seq_addr = seq_addr;
     always_ff @(posedge clk) begin
-        if (state == STATE_IDLE)
-            seq_addr <= seq_start_addr;
-        else if (state == STATE_RUN) begin
-            if (do_read) begin
-                seq_addr <= seq_addr + seq_rd_inc;
+        case (state)
+            STATE_IDLE:
+                seq_addr <= seq_start_addr;
+            STATE_RUN: begin
+                if (do_read) begin
+                    seq_addr <= seq_addr + seq_rd_inc;
+                end
+                else if (do_write) begin
+                    seq_addr <= seq_addr + 1;
+                end
             end
-            else if (do_write) begin
-                seq_addr <= seq_addr + 1;
-            end
-        end
+            STATE_RESUME:
+                if (resume_complete)
+                    seq_addr <= snapshot_resumed.seq_addr;
+        endcase
     end
     always_ff @(posedge clk) begin
         if (reset) begin
             xor_reset <= 1;
         end
         else begin
-            if ((state == STATE_IDLE) && csr_ctl_start) begin
+            if ((state == STATE_IDLE) && (csr_ctl_start || csr_ctl_resume)) begin
                 xor_reset <= 0;
             end
 	end
