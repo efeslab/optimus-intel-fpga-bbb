@@ -37,14 +37,17 @@
 #include <uuid/uuid.h>
 #include <time.h>
 
-#include <opae/fpga.h>
 #include "afu_json_info.h"
+#ifndef ORIG_ASE
+#include <vai/fpga.h>
+#include <vai/wrapper.h>
+#else
+#include <opae/fpga.h>
+#endif
 #include "csr_addr.h"
 #include "report.h"
 #include "utils.h"
 
-#define CACHELINE_BYTES 64
-#define CL(x) ((x) * CACHELINE_BYTES)
 #define RAND64 ((uint64_t)(rand()) | ((uint64_t)(rand()) << 32))
 
 //
@@ -233,8 +236,8 @@ found_prop:
         assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_TRANSACTION_CTL, start) == FPGA_OK &&
                 "Write CSR CTL failed");
         printf("START!!!\n");
-sleep:
         struct debug_csr dc;
+sleep:
         usleep(500000);
         if (!get_debug_csr(accel_handle, &dc))
             print_csr(&dc);
