@@ -487,7 +487,7 @@ module `TOP_IFC_NAME
         end
         else
         begin
-            resume_rdreq_sent <= sRx.c0TxAlmFull? resume_complete: (state == STATE_RESUME);
+            resume_rdreq_sent <= sRx.c0TxAlmFull? resume_rdreq_sent: (state == STATE_RESUME);
             case (state)
                 STATE_RUN: begin
                     // Generate a read request when needed and the FIU isn't full
