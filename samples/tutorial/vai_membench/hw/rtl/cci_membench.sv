@@ -30,6 +30,7 @@
 
 `include "platform_if.vh"
 `include "afu_json_info.vh"
+`include "vai_timeslicing.vh"
 `ifdef WITH_MUX
     `define MEMBENCH_TOP_IFC_NAME `MEMBENCH_WITHMUX_NAME
 `else
@@ -123,46 +124,43 @@ module `MEMBENCH_TOP_IFC_NAME
     localparam MDATA_WIDTH = 12;
     //------------------ RO -------------------------------
     //time slicing status 0 means idle, 1 means running, 2 means done
-    localparam MMIO_CSR_TS_STATE = 16'h18 >> 2;
-    // placeholder: MMIO_CSR_MEM_BASE 16'h20
-    // placeholder: MMIO_CSR_LEN_MASK 16'h28
-    // placeholder: MMIO_CSR_READ_TOTAL 16'h30
-    // placeholder: MMIO_CSR_WRITE_TOTAL 16'h38
-    // placeholder: MMIO_CSR_PROPERTIES 16'h40
+    // placeholder: MMIO_CSR_MEM_BASE 16'h0
+    // placeholder: MMIO_CSR_LEN_MASK 16'h8
+    // placeholder: MMIO_CSR_READ_TOTAL 16'h10
+    // placeholder: MMIO_CSR_WRITE_TOTAL 16'h18
+    // placeholder: MMIO_CSR_PROPERTIES 16'h20
     // how many read requests have been issued and served
-    localparam MMIO_CSR_READ_CNT = 16'h48 >> 2;
+    localparam MMIO_CSR_READ_CNT = `TSCSR_USR(16'h28);
     // how many write requests have been issued and served
-    localparam MMIO_CSR_WRITE_CNT = 16'h50 >> 2;
+    localparam MMIO_CSR_WRITE_CNT = `TSCSR_USR(16'h30);
     // how many cycles have passed since write 1 to MMIO_CSR_CTL
-    localparam MMIO_CSR_CLK_CNT = 16'h58 >> 2;
-    localparam MMIO_CSR_STATE = 16'h60 >> 2;
-    localparam MMIO_CSR_REPORT_RECCNT = 16'h68 >> 2;
-    localparam MMIO_CSR_RDRSP_CNT = 16'h70 >> 2;
-    localparam MMIO_CSR_WRRSP_CNT = 16'h78 >> 2;
+    localparam MMIO_CSR_CLK_CNT = `TSCSR_USR(16'h38);
+    localparam MMIO_CSR_STATE = `TSCSR_USR(16'h40);
+    localparam MMIO_CSR_REPORT_RECCNT = `TSCSR_USR(16'h48);
+    localparam MMIO_CSR_RDRSP_CNT = `TSCSR_USR(16'h50);
+    localparam MMIO_CSR_WRRSP_CNT = `TSCSR_USR(16'h58);
     //------------------ WO -------------------------------
-    // write 1 to start the AFU
-    localparam MMIO_CSR_CTL = 16'h018 >> 2;
     // The base address
-    localparam MMIO_CSR_MEM_BASE = 16'h20 >> 2;
+    localparam MMIO_CSR_MEM_BASE = `TSCSR_USR(16'h0);
     // All access will be masked by this:
     // offset = rand() & len_mask; base_addr[offset] = xxx.
-    localparam MMIO_CSR_LEN_MASK = 16'h28 >> 2;
+    localparam MMIO_CSR_LEN_MASK = `TSCSR_USR(16'h8);
     // how many read requests will be issued in total
-    localparam MMIO_CSR_READ_TOTAL = 16'h30 >> 2;
+    localparam MMIO_CSR_READ_TOTAL = `TSCSR_USR(16'h10);
     // how many write requests will be issued in total
-    localparam MMIO_CSR_WRITE_TOTAL = 16'h38 >> 2;
+    localparam MMIO_CSR_WRITE_TOTAL = `TSCSR_USR(16'h18);
     // Read VA: 0:1, Write VA: 2:3
     // Read Cache Hint: 4:7, Write Cache Hint 8:11
     // Access pattern: 12:12, 0: sequential 1: random
     // Read Len: 14:13, 0: eCL_LEN_1 1: eCL_LEN_2 2: eCL_LEN_4
-    localparam MMIO_CSR_PROPERTIES = 16'h40 >> 2;
-    localparam MMIO_CSR_RAND_SEED_0 = 16'h48 >> 2;
-    localparam MMIO_CSR_RAND_SEED_1 = 16'h50 >> 2;
-    localparam MMIO_CSR_RAND_SEED_2 = 16'h58 >> 2;
-    localparam MMIO_CSR_STATUS_ADDR = 16'h60 >> 2;
+    localparam MMIO_CSR_PROPERTIES = `TSCSR_USR(16'h20);
+    localparam MMIO_CSR_RAND_SEED_0 = `TSCSR_USR(16'h28);
+    localparam MMIO_CSR_RAND_SEED_1 = `TSCSR_USR(16'h30);
+    localparam MMIO_CSR_RAND_SEED_2 = `TSCSR_USR(16'h38);
+    localparam MMIO_CSR_STATUS_ADDR = `TSCSR_USR(16'h40);
     // filter out the latency of accesses to which pages will be recorded
-    localparam MMIO_CSR_REC_FILTER = 16'h68 >> 2;
-    localparam MMIO_CSR_SEQ_START_OFFSET = 16'h70 >> 2;
+    localparam MMIO_CSR_REC_FILTER = `TSCSR_USR(16'h48);
+    localparam MMIO_CSR_SEQ_START_OFFSET = `TSCSR_USR(16'h50);
     //------------------ Default value--------------------
     // Memory address to which this AFU will write.
     localparam DEFAULT_CSR_MEM_BASE = t_ccip_clAddr'(0);
@@ -171,8 +169,9 @@ module `MEMBENCH_TOP_IFC_NAME
     localparam DEFAULT_RAND_SEED_2 = 64'h39e8e59c761c69c6;
     localparam RECFILTER_WIDTH = 10;
     localparam PAGE_IDX_WIDTH = 6;
-    localparam RW_CNT_WIDTH = 32;
-    t_ccip_clAddr base_addr, report_addr, status_addr;
+    localparam RW_CNT_WIDTH = 64;
+    localparam STATE_SIZE_PG = 1;
+    t_ccip_clAddr base_addr, report_addr, status_addr, snapshot_addr;
     assign report_addr = (status_addr + 1);
     logic [31:0] len_mask;
     logic [RECFILTER_WIDTH - 1:0] rec_filter;
@@ -192,22 +191,20 @@ module `MEMBENCH_TOP_IFC_NAME
     logic [31:0] seq_start_addr;
     logic [31:0] seq_rd_inc;
 
-    localparam CSR_TS_IDLE = 2'h0;
-    localparam CSR_TS_RUNNING = 2'h1;
-    localparam CSR_TS_DONE = 2'h2;
-    logic [1:0] csr_ts_state;
-    logic csr_ctl_start;
+    t_transaction_state csr_ts_state;
+    logic csr_ctl_start, csr_ctl_resume, csr_ctl_pause;
     // explicitly use one more bit as sentinel
     logic [$clog2(RECORD_NUM):0] reccnt, report_reccnt, c0Rx_reccnt, c1Rx_reccnt;
     logic report_done, finish_done; // finish_done is set after write complete bit
-    typedef enum logic [1:0]
+    typedef enum logic [2:0]
     {
         STATE_IDLE,
+        STATE_RESUME,
+        STATE_RUN,
         STATE_REPORT,
-        STATE_FINISH,
-        STATE_RUN
-    }
-    t_state;
+        STATE_PAUSE,
+        STATE_FINISH
+    } t_state;
     t_state state;
 
     logic reset;
@@ -248,7 +245,8 @@ module `MEMBENCH_TOP_IFC_NAME
                 // AFU_ID_H
                 4: sTx.c2.data <= afu_id[127:64];
 
-                MMIO_CSR_TS_STATE: sTx.c2.data <= t_ccip_mmioData'({62'h0, csr_ts_state});
+                MMIO_CSR_TRANSACTION_STATE: sTx.c2.data <= t_ccip_mmioData'(csr_ts_state);
+                MMIO_CSR_STATE_SIZE_PG: sTx.c2.data <= t_ccip_mmioData'(STATE_SIZE_PG);
                 MMIO_CSR_MEM_BASE: sTx.c2.data <= t_ccip_mmioData'(base_addr);
                 MMIO_CSR_LEN_MASK: sTx.c2.data <= t_ccip_mmioData'({32'h0, len_mask});
                 MMIO_CSR_READ_TOTAL: sTx.c2.data <= t_ccip_mmioData'(read_total);
@@ -300,70 +298,67 @@ module `MEMBENCH_TOP_IFC_NAME
             read_type <= 0;
             seq_start_addr <= 0;
         end
-        else if (is_csr_write)
-        begin
-            case(mmio_req_hdr.address)
-                MMIO_CSR_MEM_BASE: base_addr <= t_ccip_clAddr'(sRx.c0.data);
-                MMIO_CSR_LEN_MASK: len_mask <= sRx.c0.data[31:0];
-                MMIO_CSR_REC_FILTER: rec_filter <= sRx.c0.data[25:0];
-                MMIO_CSR_READ_TOTAL: read_total <= sRx.c0.data;
-                MMIO_CSR_WRITE_TOTAL: write_total <= sRx.c0.data;
-                // Read VA: 0:1, Write VA: 2:3
-                // Read Cache Hint: 4:7, Write Cache Hint 8:11
-                // Access pattern: 12:12, 0: sequential 1: random
-                // Read Len: 14:13, 0: eCL_LEN_1 1: eCL_LEN_2 2: eCL_LEN_4
-                MMIO_CSR_PROPERTIES: begin
-                    case (sRx.c0.data[1:0]) // read_vc
-                        2'b00: read_vc <= eVC_VA;
-                        2'b01: read_vc <= eVC_VL0;
-                        2'b10: read_vc <= eVC_VH0;
-                        2'b11: read_vc <= eVC_VH1;
-                    endcase
-                    case (sRx.c0.data[3:2]) // write_vc
-                        2'b00: write_vc <= eVC_VA;
-                        2'b01: write_vc <= eVC_VL0;
-                        2'b10: write_vc <= eVC_VH0;
-                        2'b11: write_vc <= eVC_VH1;
-                    endcase
-                    case (sRx.c0.data[7:4]) // read_hint
-                        4'h0: read_hint <= eREQ_RDLINE_I;
-                        4'h1: read_hint <= eREQ_RDLINE_S;
-                        default: read_hint <= eREQ_RDLINE_I;
-                    endcase
-                    case (sRx.c0.data[11:8]) // write_hint
-                        4'h0: write_hint <= eREQ_WRLINE_I;
-                        4'h1: write_hint <= eREQ_WRLINE_M;
-                        4'h2: write_hint <= eREQ_WRPUSH_I;
-                        4'h4: write_hint <= eREQ_WRFENCE;
-                        4'h6: write_hint <= eREQ_INTR;
-                        default: write_hint <= eREQ_WRLINE_I;
-                    endcase
-                    access_pattern <= sRx.c0.data[12];
-                    read_type <= sRx.c0.data[14:13];
-                    case (sRx.c0.data[14:13])
-                            default: // eCL_LEN_1
-                                seq_rd_inc <= 1;
-                            1: // eCL_LEN_2
-                                seq_rd_inc <= 2;
-                            2: // eCL_LEN_4
-                                seq_rd_inc <= 4;
-                    endcase
-                end
-                MMIO_CSR_RAND_SEED_0: rand_seed[0] <= sRx.c0.data;
-                MMIO_CSR_RAND_SEED_1: rand_seed[1] <= sRx.c0.data;
-                MMIO_CSR_RAND_SEED_2: rand_seed[2] <= sRx.c0.data;
-                MMIO_CSR_STATUS_ADDR: status_addr <= t_ccip_clAddr'(sRx.c0.data);
-                MMIO_CSR_CTL: csr_ctl_start <= sRx.c0.data[0];
-                MMIO_CSR_SEQ_START_OFFSET: seq_start_addr <= sRx.c0.data[31:0];
-                default:
+        else begin
+            csr_ctl_start <= is_csr_write && (mmio_req_hdr.address == MMIO_CSR_TRANSACTION_CTL) && (t_transaction_ctl'(sRx.c0.data) == tsctlSTART_NEW);
+            csr_ctl_resume <= is_csr_write && (mmio_req_hdr.address == MMIO_CSR_TRANSACTION_CTL) && (t_transaction_ctl'(sRx.c0.data) == tsctlSTART_RESUME);
+            csr_ctl_pause <= is_csr_write && (mmio_req_hdr.address == MMIO_CSR_TRANSACTION_CTL) && (t_transaction_ctl'(sRx.c0.data) == tsctlPAUSE);
+            if (is_csr_write)
                 begin
-                    csr_ctl_start <= 1'b0;
+                    case(mmio_req_hdr.address)
+                        MMIO_CSR_MEM_BASE: base_addr <= t_ccip_clAddr'(sRx.c0.data);
+                        MMIO_CSR_LEN_MASK: len_mask <= sRx.c0.data[31:0];
+                        MMIO_CSR_REC_FILTER: rec_filter <= sRx.c0.data[25:0];
+                        MMIO_CSR_READ_TOTAL: read_total <= sRx.c0.data;
+                        MMIO_CSR_WRITE_TOTAL: write_total <= sRx.c0.data;
+                        // Read VA: 0:1, Write VA: 2:3
+                        // Read Cache Hint: 4:7, Write Cache Hint 8:11
+                        // Access pattern: 12:12, 0: sequential 1: random
+                        // Read Len: 14:13, 0: eCL_LEN_1 1: eCL_LEN_2 2: eCL_LEN_4
+                        MMIO_CSR_PROPERTIES: begin
+                            case (sRx.c0.data[1:0]) // read_vc
+                                2'b00: read_vc <= eVC_VA;
+                                2'b01: read_vc <= eVC_VL0;
+                                2'b10: read_vc <= eVC_VH0;
+                                2'b11: read_vc <= eVC_VH1;
+                            endcase
+                            case (sRx.c0.data[3:2]) // write_vc
+                                2'b00: write_vc <= eVC_VA;
+                                2'b01: write_vc <= eVC_VL0;
+                                2'b10: write_vc <= eVC_VH0;
+                                2'b11: write_vc <= eVC_VH1;
+                            endcase
+                            case (sRx.c0.data[7:4]) // read_hint
+                                4'h0: read_hint <= eREQ_RDLINE_I;
+                                4'h1: read_hint <= eREQ_RDLINE_S;
+                                default: read_hint <= eREQ_RDLINE_I;
+                            endcase
+                            case (sRx.c0.data[11:8]) // write_hint
+                                4'h0: write_hint <= eREQ_WRLINE_I;
+                                4'h1: write_hint <= eREQ_WRLINE_M;
+                                4'h2: write_hint <= eREQ_WRPUSH_I;
+                                4'h4: write_hint <= eREQ_WRFENCE;
+                                4'h6: write_hint <= eREQ_INTR;
+                                default: write_hint <= eREQ_WRLINE_I;
+                            endcase
+                            access_pattern <= sRx.c0.data[12];
+                            read_type <= sRx.c0.data[14:13];
+                            case (sRx.c0.data[14:13])
+                                    default: // eCL_LEN_1
+                                        seq_rd_inc <= 1;
+                                    1: // eCL_LEN_2
+                                        seq_rd_inc <= 2;
+                                    2: // eCL_LEN_4
+                                        seq_rd_inc <= 4;
+                            endcase
+                        end
+                        MMIO_CSR_RAND_SEED_0: rand_seed[0] <= sRx.c0.data;
+                        MMIO_CSR_RAND_SEED_1: rand_seed[1] <= sRx.c0.data;
+                        MMIO_CSR_RAND_SEED_2: rand_seed[2] <= sRx.c0.data;
+                        MMIO_CSR_STATUS_ADDR: status_addr <= t_ccip_clAddr'(sRx.c0.data);
+                        MMIO_CSR_SEQ_START_OFFSET: seq_start_addr <= sRx.c0.data[31:0];
+                        MMIO_CSR_SNAPSHOT_ADDR: snapshot_addr <= t_ccip_clAddr'(sRx.c0.data);
+                    endcase
                 end
-            endcase
-        end
-        else
-        begin
-            csr_ctl_start <= 1'b0;
         end
     end
     
@@ -375,7 +370,19 @@ module `MEMBENCH_TOP_IFC_NAME
     //
     // =========================================================================
 
+    typedef struct packed {
+        logic[63:0] clk_cnt;
+        logic[RW_CNT_WIDTH-1:0] rdrsp_cnt;
+        logic[RW_CNT_WIDTH-1:0] wrrsp_cnt;
+    } t_snapshot;
+    t_snapshot snapshot_resumed;
+    t_snapshot snapshot_toresume;
+    assign snapshot_toresume.clk_cnt = clk_cnt;
+    assign snapshot_toresume.rdrsp_cnt = rdrsp_cnt;
+    assign snapshot_toresume.wrrsp_cnt = wrrsp_cnt;
     logic read_done, write_done, can_read, can_write, do_read, do_write, rdrsp_done, wrrsp_done;
+    logic pause_complete, resume_complete;
+    logic resume_rdreq_sent, pause_wrreq_sent;
     logic do_read_Q, do_write_Q;
     //
     // State machine
@@ -386,41 +393,74 @@ module `MEMBENCH_TOP_IFC_NAME
         begin
             state <= STATE_IDLE;
             clk_cnt <= 64'h0;
-            csr_ts_state <= CSR_TS_IDLE;
+            csr_ts_state <= tsIDLE;
         end
         else
         begin
             // Trigger the AFU when start signal is wrote to CSR_CTL. (After
             // the CPU tells us where the FPGA should read, write how much
             // cachelines.)
-            if ((state == STATE_IDLE) && csr_ctl_start)
-            begin
-                state <= STATE_RUN;
-                csr_ts_state <= CSR_TS_RUNNING;
-                clk_cnt <= 64'h0;
-                $display("AFU running...");
-            end
-            if (state == STATE_RUN)
-                clk_cnt <= clk_cnt + 1;
-            // The AFU completes its task by writing a single line.  When
-            // the line is written return to idle.  The write will happen
-            // as long as the request channel is not full.
-            if ((state == STATE_RUN) && read_done && write_done && rdrsp_done && wrrsp_done)
-            begin
-                state <= STATE_REPORT;
-                $display("AFU reporting...");
-            end
-            if (state == STATE_REPORT && report_done)
-            begin
-                csr_ts_state <= CSR_TS_RUNNING;
-                state <= STATE_FINISH;
-            end
-            if (state == STATE_FINISH && finish_done)
-            begin
-                csr_ts_state <= CSR_TS_DONE;
-                state <= STATE_IDLE;
-                $display("AFU done...");
-            end
+            case (state)
+                STATE_IDLE:
+                begin
+                    if (csr_ctl_start)
+                    begin
+                        state <= STATE_RUN;
+                        csr_ts_state <= tsRUNNING;
+                        clk_cnt <= 64'h0;
+                        $display("AFU running...");
+                    end
+                    if (csr_ctl_resume)
+                    begin
+                        state <= STATE_RESUME;
+                        csr_ts_state <= tsRUNNING;
+                        $display("AFU resumming...");
+                    end
+                end
+                STATE_RESUME:
+                begin
+                    if (resume_complete) begin
+                        clk_cnt <= snapshot_resumed.clk_cnt;
+                        state <= STATE_RUN;
+                        $display("AFU resume complete...");
+                    end
+                end
+                STATE_RUN:
+                begin
+                    // The AFU completes its task by writing a single line.  When
+                    // the line is written return to idle.  The write will happen
+                    // as long as the request channel is not full.
+                    if (read_done && write_done && rdrsp_done && wrrsp_done)
+                    begin
+                        state <= STATE_REPORT;
+                        $display("AFU reporting...");
+                    end
+                    if (csr_ctl_pause)
+                    begin
+                        state <= STATE_PAUSE;
+                    end
+                    clk_cnt <= clk_cnt + 1;
+                end
+                STATE_PAUSE:
+                    if (pause_complete) begin
+                        csr_ts_state <= tsPAUSED;
+                        state <= STATE_IDLE;
+                        $display("AFU Paused completely...");
+                    end
+                STATE_REPORT:
+                    if (report_done)
+                    begin
+                        csr_ts_state <= tsRUNNING;
+                        state <= STATE_FINISH;
+                    end
+                STATE_FINISH:
+                    if (finish_done)
+                    begin
+                        csr_ts_state <= tsFINISH;
+                        state <= STATE_IDLE;
+                        $display("AFU done...");
+                    end
+            endcase
         end
     end
 
@@ -449,7 +489,7 @@ module `MEMBENCH_TOP_IFC_NAME
             do_read_Q <= 0;
             do_write_Q <= 0;
         end
-        else begin
+        else if (state == STATE_RUN) begin
             do_read_Q <= do_read;
             do_write_Q <= do_write;
         end
@@ -475,6 +515,10 @@ module `MEMBENCH_TOP_IFC_NAME
     logic should_rec_Q;
     logic [$clog2(RECORD_NUM):0] reccnt_Q, report_reccnt_Q;
     logic [RECORD_WIDTH-1:0] latbgn_Q;
+
+    // for preemption
+    localparam PAUSE_MDATA_MAGIC = RECORD_NUM + 1;
+    localparam RESUME_MDATA_MAGIC = RECORD_NUM + 2;
     /*
      * send memory read and write requests
      */
@@ -491,6 +535,8 @@ module `MEMBENCH_TOP_IFC_NAME
             should_rec_Q <= 0;
             report_stage_2 <= 0;
             finish_done <= 0;
+            resume_rdreq_sent <= 0;
+            pause_wrreq_sent <= 0;
         end
         else
         begin
@@ -498,6 +544,8 @@ module `MEMBENCH_TOP_IFC_NAME
             if (should_rec_Q) begin
                 latbgn[reccnt_Q] <= latbgn_Q;
             end
+            resume_rdreq_sent <= sRx.c0TxAlmFull? resume_rdreq_sent: (state == STATE_RESUME);
+            pause_wrreq_sent <= sRx.c1TxAlmFull? pause_wrreq_sent: (state == STATE_PAUSE);
             case (state)
                 STATE_RUN: begin
                     if (do_read_Q) begin
@@ -565,6 +613,28 @@ module `MEMBENCH_TOP_IFC_NAME
                         sTx.c1.valid <= 1'b0;
                         sTx.c1.hdr <= t_ccip_c1_ReqMemHdr'(0);
                     end
+                end
+                STATE_RESUME: begin
+                    sTx.c0.valid <= (!sRx.c0TxAlmFull && !resume_rdreq_sent);
+                    sTx.c0.hdr.req_type <= eREQ_RDLINE_I;
+                    sTx.c0.hdr.address <= snapshot_addr;
+                    sTx.c0.hdr.vc_sel <= read_vc;
+                    sTx.c0.hdr.cl_len <= eCL_LEN_1;
+                    sTx.c0.hdr.mdata <= RESUME_MDATA_MAGIC;
+                    if (resume_complete) begin
+                        read_cnt <= snapshot_resumed.rdrsp_cnt;
+                        write_cnt <= snapshot_resumed.wrrsp_cnt;
+                    end
+                end
+                STATE_PAUSE: begin
+                    sTx.c1.valid <= (!sRx.c1TxAlmFull && !pause_wrreq_sent);
+                    sTx.c1.hdr.req_type <= eREQ_WRLINE_I;
+                    sTx.c1.hdr.vc_sel <= write_vc;
+                    sTx.c1.hdr.address <= snapshot_addr;
+                    sTx.c1.hdr.sop <= 1'b1;
+                    sTx.c1.hdr.cl_len <= eCL_LEN_1;
+                    sTx.c1.hdr.mdata <= PAUSE_MDATA_MAGIC;
+                    sTx.c1.data <= t_ccip_clData'(snapshot_toresume);
                 end
                 STATE_REPORT: begin
                     if (!sRx.c1TxAlmFull && !report_done) begin
@@ -640,81 +710,100 @@ module `MEMBENCH_TOP_IFC_NAME
             for (i=0; i < RECORD_NUM; ++i) begin
                 latrec[i] <= 0;
             end
+            snapshot_resumed <= 0;
+            resume_complete <= 0;
+            pause_complete <= 0;
         end
         else begin
-            if (sRx.c1.rspValid == 1'b1)
-            begin
-                wrrsp_cnt <= wrrsp_cnt + 1;
-                if (c1Rx_reccnt != RECORD_NUM)
+            resume_complete <= sRx.c0.rspValid  && (sRx.c0.hdr.mdata == RESUME_MDATA_MAGIC) && (state == STATE_RESUME);
+            pause_complete <= sRx.c1.rspValid && (sRx.c1.hdr.mdata == PAUSE_MDATA_MAGIC) && (state == STATE_PAUSE);
+            case (state)
+                STATE_RUN:
                 begin
-                    wrrsp_stage2 <= 1;
-                    c1Rx_reccnt_Q <= c1Rx_reccnt;
+                    if (sRx.c1.rspValid == 1'b1)
+                    begin
+                        wrrsp_cnt <= wrrsp_cnt + 1;
+                        if (c1Rx_reccnt != RECORD_NUM)
+                        begin
+                            wrrsp_stage2 <= 1;
+                            c1Rx_reccnt_Q <= c1Rx_reccnt;
+                        end
+                        else
+                        begin
+                            wrrsp_stage2 <= 0;
+                        end
+                    end
+                    if (wrrsp_stage2) begin
+                        wrlatbgn <= latbgn[c1Rx_reccnt_Q];
+                        c1Rx_reccnt_QQ <= c1Rx_reccnt_Q;
+                        wrrsp_stage3 <= 1;
+                    end
+                    else begin
+                        wrrsp_stage3 <= 0;
+                    end
+                    if (wrrsp_stage3) begin
+                        wrlat <= clk_cnt[RECORD_WIDTH-1:0] - wrlatbgn;
+                        c1Rx_reccnt_QQQ <= c1Rx_reccnt_QQ;
+                        wrrsp_stage4 <= 1;
+                    end
+                    else
+                    begin
+                        wrrsp_stage4 <= 0;
+                    end
+                    if (wrrsp_stage4) begin
+                        latrec[c1Rx_reccnt_QQQ][RECORD_WIDTH-2:0] <= wrlat;
+                        latrec[c1Rx_reccnt_QQQ][RECORD_WIDTH-1] <= 1'b1; // last bit == 1: write request
+                    end
+                    if (sRx.c0.rspValid == 1'b1)
+                    begin
+                        rdrsp_cnt <= rdrsp_cnt + 1;
+                        if (c0Rx_reccnt != RECORD_NUM)
+                        begin
+                            rdrsp_stage2 <= 1;
+                            c0Rx_reccnt_Q <= c0Rx_reccnt + sRx.c0.hdr.cl_num;
+                            c0Rx_base_reccnt_Q <= c0Rx_reccnt;
+                        end
+                        else
+                        begin
+                            rdrsp_stage2 <= 0;
+                        end
+                    end
+                    else
+                    begin
+                        rdrsp_stage2 <= 0;
+                    end
+                    if (rdrsp_stage2) begin
+                        rdlatbgn <= latbgn[c0Rx_base_reccnt_Q];
+                        c0Rx_reccnt_QQ <= c0Rx_reccnt_Q;
+                        rdrsp_stage3 <= 1;
+                    end
+                    else begin
+                        rdrsp_stage3 <= 0;
+                    end
+                    if (rdrsp_stage3) begin
+                        rdlat <= clk_cnt[RECORD_WIDTH-1:0] - rdlatbgn; // intended overflow here
+                        c0Rx_reccnt_QQQ <= c0Rx_reccnt_QQ;
+                        rdrsp_stage4 <= 1;
+                    end
+                    else
+                    begin
+                        rdrsp_stage4 <= 0;
+                    end
+                    if (rdrsp_stage4) begin
+                        latrec[c0Rx_reccnt_QQQ][RECORD_WIDTH-2:0] <= rdlat;
+                        latrec[c0Rx_reccnt_QQQ][RECORD_WIDTH-1] <= 1'b0; // last bit == 0: read request
+                    end
                 end
-                else
-                begin
-                    wrrsp_stage2 <= 0;
+                STATE_RESUME: begin
+                    if (sRx.c0.rspValid) begin
+                        snapshot_resumed <= t_snapshot'(sRx.c0.data);
+                    end
+                    if (resume_complete) begin
+                        rdrsp_cnt <= snapshot_resumed.rdrsp_cnt;
+                        wrrsp_cnt <= snapshot_resumed.wrrsp_cnt;
+                    end
                 end
-            end
-            if (wrrsp_stage2) begin
-                wrlatbgn <= latbgn[c1Rx_reccnt_Q];
-                c1Rx_reccnt_QQ <= c1Rx_reccnt_Q;
-                wrrsp_stage3 <= 1;
-            end
-            else begin
-                wrrsp_stage3 <= 0;
-            end
-            if (wrrsp_stage3) begin
-                wrlat <= clk_cnt[RECORD_WIDTH-1:0] - wrlatbgn;
-                c1Rx_reccnt_QQQ <= c1Rx_reccnt_QQ;
-                wrrsp_stage4 <= 1;
-            end
-            else
-            begin
-                wrrsp_stage4 <= 0;
-            end
-            if (wrrsp_stage4) begin
-                latrec[c1Rx_reccnt_QQQ][RECORD_WIDTH-2:0] <= wrlat;
-                latrec[c1Rx_reccnt_QQQ][RECORD_WIDTH-1] <= 1'b1; // last bit == 1: write request
-            end
-            if (sRx.c0.rspValid == 1'b1)
-            begin
-                rdrsp_cnt <= rdrsp_cnt + 1;
-                if (c0Rx_reccnt != RECORD_NUM)
-                begin
-                    rdrsp_stage2 <= 1;
-                    c0Rx_reccnt_Q <= c0Rx_reccnt + sRx.c0.hdr.cl_num;
-                    c0Rx_base_reccnt_Q <= c0Rx_reccnt;
-                end
-                else
-                begin
-                    rdrsp_stage2 <= 0;
-                end
-            end
-            else
-            begin
-                rdrsp_stage2 <= 0;
-            end
-            if (rdrsp_stage2) begin
-                rdlatbgn <= latbgn[c0Rx_base_reccnt_Q];
-                c0Rx_reccnt_QQ <= c0Rx_reccnt_Q;
-                rdrsp_stage3 <= 1;
-            end
-            else begin
-                rdrsp_stage3 <= 0;
-            end
-            if (rdrsp_stage3) begin
-                rdlat <= clk_cnt[RECORD_WIDTH-1:0] - rdlatbgn; // intended overflow here
-                c0Rx_reccnt_QQQ <= c0Rx_reccnt_QQ;
-                rdrsp_stage4 <= 1;
-            end
-            else
-            begin
-                rdrsp_stage4 <= 0;
-            end
-            if (rdrsp_stage4) begin
-                latrec[c0Rx_reccnt_QQQ][RECORD_WIDTH-2:0] <= rdlat;
-                latrec[c0Rx_reccnt_QQQ][RECORD_WIDTH-1] <= 1'b0; // last bit == 0: read request
-            end
+            endcase
         end
     end
     /*

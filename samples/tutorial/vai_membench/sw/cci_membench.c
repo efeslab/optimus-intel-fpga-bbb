@@ -115,7 +115,7 @@ static volatile void* alloc_buffer(fpga_handle accel_handle,
     return buf;
 }
 
-typedef enum {DATABUF=0,STATBUF,NUM_BUF} buf_t;
+typedef enum {DATABUF=0,STATBUF,SNAPSHOT_BUF,NUM_BUF} buf_t;
 size_t cmdarg_getbytes(const char *arg) {
     size_t l = strlen(arg);
     uint64_t n = atoll(arg);
@@ -171,10 +171,11 @@ found_prop:
     uint64_t buf_pa[NUM_BUF];
     uint64_t wsid[NUM_BUF];
     uint64_t len_mask = (buf_size/CL(1)) - 1; // access unit in AFU is cache line
-    assert(((buf_size % getpagesize()) == 0 ) && ("buf_size should be page aligned"));
+    //assert(((buf_size % getpagesize()) == 0 ) && ("buf_size should be page aligned"));
     size_t alloc_size[NUM_BUF]; {
         alloc_size[DATABUF] = buf_size + getpagesize();
         alloc_size[STATBUF] = getpagesize();
+        alloc_size[SNAPSHOT_BUF] = getpagesize();
     }
     accel_handle = connect_to_accel(AFU_ACCEL_UUID);
     size_t i = 0;
@@ -186,69 +187,81 @@ found_prop:
     memset(buf[STATBUF], 0, alloc_size[STATBUF]);
     volatile struct status_cl *status_buf = (struct status_cl *) buf[STATBUF];
     volatile report_t *report_buf = (report_t *)(buf[STATBUF] + CL(1));
-
-    // reset to uncompleted
-    status_buf->completion = 0;
-    // Tell the accelerator the address of the buffer using cache line
-    // addresses.  The accelerator will respond by writing to the buffer.
-    uint64_t databuf = ((buf_pa[DATABUF] & (~0xfff)) + 0x1000);
-    assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_REPORT_ADDR, buf_pa[STATBUF]/CL(1)) == FPGA_OK &&
-            "Write Status Addr failed");
-    printf("status addr is %lX\n", buf_pa[STATBUF]);
-    assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_MEM_BASE, databuf/CL(1)) == FPGA_OK &&
-            "Write MEM BASE failed");
-    printf("MEM BASE is %lX\n", databuf);
-    assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_LEN_MASK, len_mask) == FPGA_OK &&
-            "Write LEN MASK failed");
-    printf("%zu Cache lines , buf_size is %zu, len mask %lx\n", buf_size/CL(1), buf_size, len_mask);
-    assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_READ_TOTAL, read_total) == FPGA_OK &&
-            "Write READ_TOTAL failed");
-    assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_WRITE_TOTAL, write_total) == FPGA_OK &&
-            "Write WRITE_TOTAL failed");
-    printf("Read total is %lu, Write total is %lu\n", read_total, write_total);
-    //initialize RANDOM SEED AND PROPERTIES
-    uint64_t rand_seed[3] = {RAND64, RAND64, RAND64};
-    assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_RAND_SEED_0, rand_seed[0]) == FPGA_OK &&
-            "Write RAND_SEED_0 failed");
-    assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_RAND_SEED_1, rand_seed[1]) == FPGA_OK &&
-            "Write RAND_SEED_1 failed");
-    assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_RAND_SEED_2, rand_seed[2]) == FPGA_OK &&
-            "Write RAND_SEED_2 failed");
-    printf("RAND SEED \n\t%0lx\n\t%0lx\n\t%0lx\n", rand_seed[0], rand_seed[1], rand_seed[2]); 
-    assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_REC_FILTER, 0) == FPGA_OK &&
-            "Write REC_FILTER failed");
-    assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_PROPERTIES, csr_properties) == FPGA_OK &&
-            "Write PROPERTIES failed");
-    printf("PROPERTIES: %s %s %s %s %s %s\n",
-            GET_RD_VC_N(csr_properties), GET_WR_VC_N(csr_properties),
-            GET_RD_CH_NAME(csr_properties), GET_WR_CH_NAME(csr_properties),
-            GET_ACCESS_NAME(csr_properties), GET_RD_LEN_NAME(csr_properties));
-    // FIXME set seq start offset according to VMID
-    assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_SEQ_START_OFFSET, 32) == FPGA_OK &&
-            "Write SEQ_START_OFFSET failed");
-    assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_CTL, 1) == FPGA_OK &&
-            "Write CSR CTL failed");
-    printf("START!!!\n");
-    struct debug_csr dc;
-    // Spin, waiting for the value in memory to change to something non-zero.
-#ifdef TIMESLICING
-    uint64_t ts_state;
-    while ((fpgaReadMMIO64(accel_handle, 0, MMIO_CSR_TS_STATE, &ts_state) == FPGA_OK)
-            && ts_state!=2UL)
-#else
-        while (0 == status_buf->completion)
-#endif
-        {
-            if (!get_debug_csr(accel_handle, &dc))
-                print_csr(&dc);
-            else {
-                perror("get_debug_csr error");
+    t_transaction_ctl start = tsctlSTART_NEW;
+    while(1) { //preemption loop start
+        // reset to uncompleted
+        status_buf->completion = 0;
+        // Tell the accelerator the address of the buffer using cache line
+        // addresses.  The accelerator will respond by writing to the buffer.
+        uint64_t databuf = ((buf_pa[DATABUF] & (~0xfff)) + 0x1000);
+        assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_REPORT_ADDR, buf_pa[STATBUF]/CL(1)) == FPGA_OK &&
+                "Write Status Addr failed");
+        printf("status addr is %lX\n", buf_pa[STATBUF]);
+        assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_MEM_BASE, databuf/CL(1)) == FPGA_OK &&
+                "Write MEM BASE failed");
+        printf("MEM BASE is %lX\n", databuf);
+        assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_LEN_MASK, len_mask) == FPGA_OK &&
+                "Write LEN MASK failed");
+        printf("%zu Cache lines , buf_size is %zu, len mask %lx\n", buf_size/CL(1), buf_size, len_mask);
+        assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_READ_TOTAL, read_total) == FPGA_OK &&
+                "Write READ_TOTAL failed");
+        assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_WRITE_TOTAL, write_total) == FPGA_OK &&
+                "Write WRITE_TOTAL failed");
+        printf("Read total is %lu, Write total is %lu\n", read_total, write_total);
+        //initialize RANDOM SEED AND PROPERTIES
+        uint64_t rand_seed[3] = {RAND64, RAND64, RAND64};
+        assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_RAND_SEED_0, rand_seed[0]) == FPGA_OK &&
+                "Write RAND_SEED_0 failed");
+        assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_RAND_SEED_1, rand_seed[1]) == FPGA_OK &&
+                "Write RAND_SEED_1 failed");
+        assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_RAND_SEED_2, rand_seed[2]) == FPGA_OK &&
+                "Write RAND_SEED_2 failed");
+        printf("RAND SEED \n\t%0lx\n\t%0lx\n\t%0lx\n", rand_seed[0], rand_seed[1], rand_seed[2]); 
+        assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_REC_FILTER, 0) == FPGA_OK &&
+                "Write REC_FILTER failed");
+        assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_PROPERTIES, csr_properties) == FPGA_OK &&
+                "Write PROPERTIES failed");
+        printf("PROPERTIES: %s %s %s %s %s %s\n",
+                GET_RD_VC_N(csr_properties), GET_WR_VC_N(csr_properties),
+                GET_RD_CH_NAME(csr_properties), GET_WR_CH_NAME(csr_properties),
+                GET_ACCESS_NAME(csr_properties), GET_RD_LEN_NAME(csr_properties));
+        // FIXME set seq start offset according to VMID
+        assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_SEQ_START_OFFSET, 32) == FPGA_OK &&
+                "Write SEQ_START_OFFSET failed");
+        assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_SNAPSHOT_ADDR, buf_pa[SNAPSHOT_BUF]/CL(1)) == FPGA_OK &&
+                "Write snapshot addr failed");
+        assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_TRANSACTION_CTL, start) == FPGA_OK &&
+                "Write CSR CTL failed");
+        printf("START!!!\n");
+sleep:
+        struct debug_csr dc;
+        usleep(500000);
+        if (!get_debug_csr(accel_handle, &dc))
+            print_csr(&dc);
+        else {
+            perror("get_debug_csr error");
+            break;
+        }
+        if (status_buf->completion)
+            break;
+#ifndef NO_PREEMPTION
+        uint64_t tsstate;
+        assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_TRANSACTION_CTL, tsctlPAUSE) == 0);
+        while (1) {
+            assert(fpgaReadMMIO64(accel_handle, 0, MMIO_CSR_TRANSACTION_STATE, &tsstate) == FPGA_OK);
+            printf("state while waiting for pause: %ld\n", tsstate);
+            if (tsstate == tsPAUSED)
                 break;
-            }
             usleep(500000);
-            // A well-behaved program would use _mm_pause(), nanosleep() or
-            // equivalent to save power here.
-        };
+        }
+        assert(fpgaReset(accel_handle) == FPGA_OK);
+        usleep(5000);
+        start = tsctlSTART_RESUME;
+#else
+        goto sleep;
+#endif
+    }
+    struct debug_csr dc;
     printf("Done: cycle is %lu\n",
             status_buf->n_clk);
     get_debug_csr(accel_handle, &dc);

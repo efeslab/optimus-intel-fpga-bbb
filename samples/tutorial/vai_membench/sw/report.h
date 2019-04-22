@@ -30,7 +30,7 @@
         VC_N(p, WR, VL0):\
         VC_N(p, WR, VH0):\
         VC_N(p, WR, VH1): "Unknown")
-#define VC_PAIR(name) {"RD_"#name, PROP_RD_VC(name) << PROP_RD_VC_LOWBIT},{"WR_"#name, (PROP_WR_VC(name) << PROP_WR_VC_LOWBIT)}
+#define VC_PAIR(name) {"RD_"#name, (PROP_RD_VC(name) << PROP_RD_VC_LOWBIT)},{"WR_"#name, (PROP_WR_VC(name) << PROP_WR_VC_LOWBIT)}
 #define VC_ENTRY_DEF VC_PAIR(VA), VC_PAIR(VL0), VC_PAIR(VH0), VC_PAIR(VH1)
 // read cache hint
 #define PROP_RD_CH_LOWBIT 4

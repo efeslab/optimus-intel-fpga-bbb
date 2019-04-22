@@ -1,4 +1,5 @@
 +define+MEMBENCH_WITHMUX_NAME=cci_membench_top
 +define+MEMBENCH_NOMUX_NAME=ccip_std_afu
++incdir+../../../common/hw/rtl
 cci_membench.sv
 xorwow.sv
