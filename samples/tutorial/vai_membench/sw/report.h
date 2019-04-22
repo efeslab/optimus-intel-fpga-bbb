@@ -19,7 +19,7 @@
 #define PROP_WR_VC(name) PROP_VC_##name
 #define VC_MASK_RD 0x3
 #define VC_MASK_WR 0xc
-#define VC_N(p, RW, name) (((p&(VC_MASK_##RW) >> PROP_##RW##_VC_LOWBIT)) == PROP_ ## RW ## _VC(name))?#RW"_"#name
+#define VC_N(p, RW, name) ((((p&(VC_MASK_##RW)) >> PROP_##RW##_VC_LOWBIT)) == PROP_ ## RW ## _VC(name))?#RW"_"#name
 #define GET_RD_VC_N(p) (\
         VC_N(p, RD, VA):\
         VC_N(p, RD, VL0):\
