@@ -1,4 +1,4 @@
 +define+AFU_WITHMUX_NAME=linked_list_nompf_top
 +define+AFU_NOMUX_NAME=ccip_std_afu
-+incdir+.
++incdir+../../../common/hw/rtl
 linked_list_nompf.sv
