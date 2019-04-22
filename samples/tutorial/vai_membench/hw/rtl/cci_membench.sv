@@ -290,9 +290,6 @@ module `MEMBENCH_TOP_IFC_NAME
             rec_filter <= 0;
             read_total <= 64'h0;
             write_total <= 64'h0;
-            rand_seed[0] <= DEFAULT_RAND_SEED_0;
-            rand_seed[1] <= DEFAULT_RAND_SEED_1;
-            rand_seed[2] <= DEFAULT_RAND_SEED_2;
             csr_ctl_start <= 1'b0;
             access_pattern <= 0;
             read_type <= 0;
@@ -851,18 +848,20 @@ module `MEMBENCH_TOP_IFC_NAME
             if ((state == STATE_IDLE) && csr_ctl_start) begin
                 xor_reset <= 0;
             end
-            case (access_pattern)
-                0: begin // sequential
-                    next_offset <= seq_addr & len_mask;
-                    next_addr <= base_addr + (seq_addr & len_mask);
-                    next_valid <= (state == STATE_RUN);
-                end
-                1: begin // random
-                    next_offset <= random32_Q & len_mask;
-                    next_addr <= base_addr + (random32_Q & len_mask);
-                    next_valid <= next_valid_Q;
-                end
-            endcase
-        end
+	end
+    end
+    always_ff @(posedge clk) begin
+	case (access_pattern)
+	    0: begin // sequential
+		next_offset <= seq_addr & len_mask;
+		next_addr <= base_addr + (seq_addr & len_mask);
+		next_valid <= (state == STATE_RUN);
+	    end
+	    1: begin // random
+		next_offset <= random32_Q & len_mask;
+		next_addr <= base_addr + (random32_Q & len_mask);
+		next_valid <= next_valid_Q;
+	    end
+	endcase
     end
 endmodule
