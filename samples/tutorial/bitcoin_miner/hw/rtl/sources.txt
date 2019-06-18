@@ -1,0 +1,13 @@
++incdir+.
++define+BITCOIN_WITHMUX_NAME=bitcoin_top
++define+BITCOIN_NOMUX_NAME=ccip_std_afu
+
++incdir+.
+ccip_std_afu.sv
+cci_miner.sv
+fpgaminer_top.v
+main_pll.v
+sha256_transform.v
+sha-256-functions.v
+./ip/fifo_fifo_170_qq322xi.v
+./ip/fifo.v
