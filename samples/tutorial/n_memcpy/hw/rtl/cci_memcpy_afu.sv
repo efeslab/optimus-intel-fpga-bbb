@@ -35,11 +35,7 @@ module ccip_std_afu
     t_ccip_clAddr bufcpy_addr;
     logic [16:0] size;
 
-    // for extra purposes
-    //logic [16:0] size_from_0;
-
     // afu state
-
     logic start_traversal;
     logic end_traversal;
 
@@ -67,8 +63,6 @@ module ccip_std_afu
             buf_addr        <= 0;
             bufcpy_addr     <= 0;
             size            <= 0;
-            start_traversal <= 0;
-            end_traversal   <= 0;
         end
         else
         begin
@@ -79,7 +73,7 @@ module ccip_std_afu
                 case (mmio_req_hdr.address)
                     16'h22: buf_addr        <= t_ccip_clAddr'(pck_cp2af_sRx.c0.data);
                     16'h24: bufcpy_addr     <= t_ccip_clAddr'(pck_cp2af_sRx.c0.data);
-                    16'h26: size            <= pck_cp2af_sRx.c0.data;
+                    16'h26: size            <= pck_cp2af_sRx.c0.data >> 6;
                 endcase
             end
 
@@ -110,17 +104,19 @@ module ccip_std_afu
                 pck_af2cp_sTx.c2.mmioRdValid <= 1;
             end
 
-            start_traversal <= (buf_addr != 0) && (bufcpy_addr != 0);
-            end_traversal   <= (size <= 0);
-
             if (increment && size > 0)
             begin
                 size <= size - 1;
-                buf_addr    <= buf_addr + 64;
-                bufcpy_addr <= bufcpy_addr + 64;
+                buf_addr    <= buf_addr + 1;
+                bufcpy_addr <= bufcpy_addr + 1;
             end
-
         end
+    end
+
+    always_comb
+    begin
+        start_traversal <= (buf_addr != 0) && (bufcpy_addr != 0);
+        end_traversal   <= (size == 0) && start_traversal;
     end
 
     typedef enum logic[1:0] {
@@ -197,30 +193,26 @@ module ccip_std_afu
     end
 
     // Read logic
-    //
+
     t_ccip_c0_ReqMemHdr rd_hdr;
 
     always_comb
     begin
         rd_hdr <= t_ccip_c0_ReqMemHdr'(0);
-        //rd_hdr.vc_sel = eVC_VA;
-        //rd_hdr.cl_len = eCL_LEN_1;
+        rd_hdr.vc_sel = eVC_VA;
+        rd_hdr.cl_len = eCL_LEN_1;
 
         rd_hdr.address   <= buf_addr;
-        //rd_hdr.mdata  <= size_from_0;
     end
 
     logic rd_needed;
-    logic rd_no;
 
     always_ff @(posedge clk)
     begin
         if (reset)
         begin
             rd_needed <= 0;
-            //size_from_0 <= 0;
             rd_sent <= 0;
-            rd_no   <= 0;
             pck_af2cp_sTx.c0.valid <= 0;
             pck_af2cp_sTx.c0.hdr   <= 0;
         end
@@ -229,11 +221,6 @@ module ccip_std_afu
             rd_needed <= (start_traversal && ! end_traversal);
             pck_af2cp_sTx.c0.valid <= (rd_needed && buf_addr != 0 && ! pck_cp2af_sRx.c0TxAlmFull && rw == READ && state == STATE_RUN && ! rd_sent);
             rd_sent <= (rd_needed && buf_addr != 0 && ! pck_cp2af_sRx.c0TxAlmFull && rw == READ && state == STATE_RUN && ! rd_sent);
-
-            if (rd_needed && buf_addr != 0 && ! pck_cp2af_sRx.c0TxAlmFull && rw == READ && state == STATE_RUN && ! rd_sent)
-            begin
-                rd_no <= rd_no + 1;
-            end
 
             if (rd_sent)
             begin
@@ -245,7 +232,7 @@ module ccip_std_afu
     end
 
     // read response logic
-    logic [63:0] rd_data;
+    logic [511:0] rd_data;
     logic rd_response_no;
 
     always_ff @(posedge clk)
@@ -277,21 +264,17 @@ module ccip_std_afu
     always_comb
     begin
         wr_hdr <= t_ccip_c1_ReqMemHdr'(0);
-        wr_hdr.vc_sel <= eVC_VA;
-        wr_hdr.cl_len <= eCL_LEN_1;
         wr_hdr.sop <= 1'b1;
 
         wr_hdr.address <= bufcpy_addr;
     end
 
     // send write
-    logic wr_no;
     always_ff @(posedge clk)
     begin
         if (reset)
         begin
             wr_sent <= 0;
-            wr_no   <= 0;
             pck_af2cp_sTx.c1.valid <= 0;
             pck_af2cp_sTx.c1.hdr <= 0;
         end
@@ -301,11 +284,7 @@ module ccip_std_afu
             pck_af2cp_sTx.c1.data <= rd_data;
             pck_af2cp_sTx.c1.hdr <= wr_hdr;
 
-            if (state == STATE_RUN  && rw == WRITE && ! wr_sent && ! pck_cp2af_sRx.c1TxAlmFull)
-            begin
-                wr_no <= wr_no + 1;
-                wr_sent <= 1;
-            end
+            wr_sent <= (state == STATE_RUN  && rw == WRITE && ! wr_sent && ! pck_cp2af_sRx.c1TxAlmFull);
 
             if (wr_sent)
             begin
@@ -316,7 +295,7 @@ module ccip_std_afu
     end
 
     // write response
-    //
+
     always_ff @(posedge clk)
     begin
         if (reset)

@@ -9,7 +9,7 @@
 
 #include "afu_json_info.h"
 
-#define BUFFER_SIZE 512
+#define BUFFER_SIZE 4096
 
 #define CACHELINE_BYTES 64
 #define CL(x) ((x) * CACHELINE_BYTES)
@@ -106,7 +106,7 @@ int main()
     buf = alloc_buffer(handle, size * sizeof(uint64_t),  &wsid, &buf_pa);
     bufcpy = alloc_buffer(handle, size * sizeof(uint64_t), &wsid, &bufcpy_pa);
 
-    assert(buf != NULL && bufcpy != NULL); //&& finished != NULL);
+    assert(buf != NULL && bufcpy != NULL);
 
     for(size_t i = 0; i < size;++i){
         buf[i] = i + 1;
@@ -115,31 +115,25 @@ int main()
 
     mmio_write_64(handle, 0x22*4, buf_pa / CL(1),      "BUF address");
     mmio_write_64(handle, 0x24*4, bufcpy_pa / CL(1),   "BUF CPY address");
-    mmio_write_64(handle, 0x26*4, (uintptr_t)(size * sizeof(uint64_t) / 64),     "BUF size");
+    mmio_write_64(handle, 0x26*4, (uintptr_t)(size * sizeof(uint64_t)),     "BUF size");
 
     struct timespec tim2, tim = { 0, 250000000L };
 
-
-    uint64_t count = 0;
     while(buf[size-1] != bufcpy[size-1])
     {
         nanosleep(&tim, &tim2);
-        ++count;
-
-        if (count > 24)
-            break;
     }
 
     int equal = 1;
     for(size_t i = 0; i < size; ++i)
         if (buf[i] != bufcpy[i]) {
-            printf("Not equal at index %lu, %lu, %lu\n", i, buf[i], bufcpy[i]);
+            printf("Not equal at index %lu\n", i);
             equal = 0;
             break;
         }
 
     if (equal)
-        printf("Copied successfully");
+        printf("Copied successfully\n");
 
     fpgaReleaseBuffer(handle, wsid);
     fpgaClose(handle);
