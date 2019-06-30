@@ -1,0 +1,10 @@
+cci_memcpy.json
+
+C:../../../base/hw/rtl/base_sources.txt
+
++incdir+.
+cci_memcpy.sv
+a10_ram_sdp_wysiwyg.v
+cci_memcpy.json
+gram_sdp.v
+sync_C1Tx_fifo.v
