@@ -9,4 +9,5 @@ csr_mgr.sv
 a10_ram_sdp_wysiwyg.v
 gram_sdp.v
 sync_C1Tx_fifo.v
+dma.sv
 cci_memcpy_afu.sv
