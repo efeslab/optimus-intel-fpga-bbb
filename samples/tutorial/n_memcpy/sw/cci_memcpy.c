@@ -9,7 +9,8 @@
 
 #include "afu_json_info.h"
 
-#define BUFFER_SIZE 4096
+#define BUFFER_SIZE (2 * 1024)
+#define USER_CSR_BASE  32
 
 #define CACHELINE_BYTES 64
 #define CL(x) ((x) * CACHELINE_BYTES)
@@ -113,15 +114,21 @@ int main()
         bufcpy[i] = 0;
     }
 
-    mmio_write_64(handle, 0x22*4, buf_pa / CL(1),      "BUF address");
-    mmio_write_64(handle, 0x24*4, bufcpy_pa / CL(1),   "BUF CPY address");
-    mmio_write_64(handle, 0x26*4, (uintptr_t)(size * sizeof(uint64_t)),     "BUF size");
+    mmio_write_64(handle, 8 * (USER_CSR_BASE + 2), (uintptr_t)(size * sizeof(uint64_t)),   "BUF size");
+    mmio_write_64(handle, 8 * (USER_CSR_BASE + 0), buf_pa / CL(1),                         "BUF address");
+    mmio_write_64(handle, 8 * (USER_CSR_BASE + 1), bufcpy_pa / CL(1),                      "BUF CPY address");
 
     struct timespec tim2, tim = { 0, 250000000L };
+    uint64_t count = 0;
 
     while(buf[size-1] != bufcpy[size-1])
     {
         nanosleep(&tim, &tim2);
+        count += 1;
+
+        if (count >= 24) {
+            break;
+        }
     }
 
     int equal = 1;
@@ -131,6 +138,7 @@ int main()
             equal = 0;
             break;
         }
+
 
     if (equal)
         printf("Copied successfully\n");
