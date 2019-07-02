@@ -1,2 +1,7 @@
 cci_memcpy.json
+
++incdir+.
+a10_ram_sdp_wysiwyg.v
+gram_sdp.v
+sync_C1Tx_fifo.v
 cci_memcpy_afu.sv
