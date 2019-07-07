@@ -23,8 +23,11 @@ module dma(
 
     logic reset, reset_r;
 
-    assign reset = soft_reset;
-    assign reset_r = ~soft_reset;
+    always @(posedge clk)
+    begin
+        reset   <= soft_reset;
+        reset_r <= ~soft_reset;
+    end
 
     // sTx.c1 buffer(fifo)
     logic fifo_c1tx_rdack, fifo_c1tx_dout_v, fifo_c1tx_full, fifo_c1tx_almFull;
@@ -63,16 +66,40 @@ module dma(
         begin
             fifo_c1tx_dout_v_q <= 0;
             fifo_c1tx_dout_v_qq <= 0;
+            sTx_c1.c1 <= 0;
         end
         else
         begin
-            fifo_c1tx_dout_v_q <= fifo_c1tx_dout_v;
+            fifo_c1tx_dout_v_q <= fifo_c1tx_dout_v && !sRx.c1TxAlmFull;
             fifo_c1tx_dout_v_qq <= fifo_c1tx_dout_v_q;
 
             if (fifo_c1tx_dout_v_qq)
                 sTx_c1.c1 <= fifo_c1tx_dout;
             else
                 sTx_c1.c1 <= t_if_ccip_c1_Tx'(0);
+        end
+    end
+
+    logic increment;
+    t_ccip_clAddr b_buf_addr;
+
+    always_ff @(posedge clk)
+    begin
+        if (reset)
+        begin
+            b_buf_addr <= 0;
+        end
+        else
+        begin
+            if (b_buf_addr == 0)
+            begin
+                b_buf_addr <= buf_addr;
+            end
+
+            if (increment)
+            begin
+                b_buf_addr <= b_buf_addr + 1;
+            end
         end
     end
 
@@ -83,7 +110,7 @@ module dma(
 
     always_comb
     begin
-        start_traversal <= (buf_addr != 0) && (bufcpy_addr != 0);
+        start_traversal <= (b_buf_addr != 0) && (bufcpy_addr != 0);
         end_traversal   <= (written_size >= size) && start_traversal;
     end
 
@@ -108,19 +135,21 @@ module dma(
                     if (start_traversal && !end_traversal)
                     begin
                         state <= STATE_RUN;
+                        $display("Running afu");
+                        $display("Copying %d items", size);
                     end
                 STATE_RUN:
                     if (end_traversal)
                     begin
                         state <= STATE_IDLE;
+                        $display("copying done");
                     end
             endcase
         end
     end
 
     // read logic
-    // this wraps at 0xffff(65535 elements this code can copy upto 4MB)
-    t_ccip_mdata read_mdata;
+    t_ccip_c0_ReqMemHdr rd_hdr;
     logic [64:0] read_size;
 
     always_ff @(posedge clk)
@@ -129,28 +158,31 @@ module dma(
         begin
             sTx.c0.valid <= 0;
             sTx.c0.hdr   <= 0;
-            read_size   <= 0;
-            read_mdata  <= 0;
+            read_size    <= 0;
+            increment    <= 0;
         end
         else
         begin
-            sTx.c0.valid <= (buf_addr != 0 && ! sRx.c0TxAlmFull && state == STATE_RUN && !fifo_c1tx_almFull && read_size < size);
+            sTx.c0.valid <= (!sRx.c0TxAlmFull && state == STATE_RUN && !fifo_c1tx_almFull && read_size < size && !increment); // && read_size - written_size < 100);
 
-            if (buf_addr != 0 && ! sRx.c0TxAlmFull && state == STATE_RUN && !fifo_c1tx_almFull && read_size < size)
+            if (!sRx.c0TxAlmFull && state == STATE_RUN && !fifo_c1tx_almFull && read_size < size && !increment) // && read_size - written_size < 100)
             begin
                 read_size <= read_size + 1;
-                read_mdata <= read_mdata + 1;
+                increment <= 1;
             end
-            sTx.c0.hdr.vc_sel <= eVC_VA;
-            sTx.c0.hdr.cl_len <= eCL_LEN_1;
-            sTx.c0.hdr.mdata <= read_mdata;
-            sTx.c0.hdr.address   <= buf_addr + read_mdata;
+            else
+            begin
+                increment <= 0;
+            end
+
+            sTx.c0.hdr.vc_sel    <= eVC_VA;
+            sTx.c0.hdr.cl_len    <= eCL_LEN_1;
+            sTx.c0.hdr.address   <= b_buf_addr;
         end
     end
 
     // read response logic
     t_ccip_clData rd_data;
-    t_ccip_mdata  write_mdata;
 
     logic can_send_write_req;
 
@@ -159,12 +191,12 @@ module dma(
         if (reset)
         begin
             rd_data <= 0;
-            write_mdata <= 0;
+            //next_write_idx <= 0;
+            can_send_write_req <= 0;
         end
         else if (sRx.c0.rspValid)
         begin
             rd_data <= sRx.c0.data;
-            write_mdata <= sRx.c0.hdr.mdata;
             can_send_write_req <= 1;
         end
         else
@@ -177,13 +209,14 @@ module dma(
     // write logic
 
     t_ccip_c1_ReqMemHdr wr_hdr;
+    logic [64:0] next_write_idx;
 
     always_comb
     begin
         wr_hdr <= t_ccip_c1_ReqMemHdr'(0);
         wr_hdr.sop <= 1'b1;
 
-        wr_hdr.address <= bufcpy_addr + write_mdata;
+        wr_hdr.address <= bufcpy_addr + next_write_idx;
     end
 
     // send write
@@ -193,10 +226,15 @@ module dma(
         begin
             sTx.c1.valid <= 0;
             sTx.c1.hdr <= 0;
+            next_write_idx <= 0;
         end
         else
         begin
             sTx.c1.valid <= (state == STATE_RUN  && can_send_write_req);
+            if (state == STATE_RUN  && can_send_write_req)
+            begin
+                next_write_idx <= next_write_idx + 1;
+            end
             sTx.c1.data <= rd_data;
             sTx.c1.hdr <= wr_hdr;
         end
@@ -213,6 +251,7 @@ module dma(
 
         else if (sRx.c1.rspValid)
         begin
+            $display("Written no %d", written_size+1);
             written_size <= written_size + 1;
         end
     end

@@ -1,4 +1,3 @@
-`define MPF_DISABLED                            1
 `define MPF_CONF_SORT_READ_RESPONSES            1
 `define MPF_CONF_PRESERVE_WRITE_MDATA           0
 `define MPF_CONF_ENABLE_VC_MAP                  0

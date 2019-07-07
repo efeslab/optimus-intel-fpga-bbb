@@ -1,8 +1,6 @@
 `include "platform_if.vh"
+`include "csr_mgr.vh"
 `include "afu_json_info.vh"
-
-`define MPF_CONF_ENABLE_VTP 1
-`define MPF_CONF_SORT_READ_RESPONSES 1
 
 module app_afu
     (
@@ -18,8 +16,11 @@ module app_afu
         input  logic c1NotEmpty
     );
 
-    logic reset;
-    assign reset = fiu.reset;
+    logic reset = 1'b1;
+    always @(posedge clk)
+    begin
+        reset <= fiu.reset;
+    end
 
     // buffer
     t_ccip_clAddr buf_addr;
@@ -48,7 +49,7 @@ module app_afu
         begin
             if (csrs.cpu_wr_csrs[0].en)
             begin
-                buf_addr <= csrs.cpu_wr_csrs[0].data;
+                buf_addr <= t_ccip_clAddr'(csrs.cpu_wr_csrs[0].data);
             end
 
             if (csrs.cpu_wr_csrs[1].en)

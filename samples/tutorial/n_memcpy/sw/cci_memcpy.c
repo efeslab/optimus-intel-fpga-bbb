@@ -9,7 +9,7 @@
 
 #include "afu_json_info.h"
 
-#define BUFFER_SIZE 8192
+#define BUFFER_SIZE (1024*128)
 #define USER_CSR_BASE  32
 
 #define CACHELINE_BYTES 64
@@ -97,6 +97,8 @@ int main()
     fpga_handle handle;
     volatile uint64_t *buf, *bufcpy;
 
+    /*int not_equal[BUFFER_SIZE];*/
+
     uint64_t size = BUFFER_SIZE;
 
     uint64_t wsid;
@@ -120,9 +122,14 @@ int main()
 
     struct timespec tim2, tim = { 0, 250000000L };
 
+    int count = 0;
     while(buf[size-1] != bufcpy[size-1])
     {
         nanosleep(&tim, &tim2);
+        ++count;
+
+        if (count > 10000)
+            break;
     }
 
     int equal = 1;
