@@ -1,0 +1,6 @@
++incdir+.
+
+a10_ram_sdp_wysiwyg.v
+gram_sdp.v
+fifo.v
+dma.vh
