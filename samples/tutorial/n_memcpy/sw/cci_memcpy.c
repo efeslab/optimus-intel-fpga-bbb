@@ -9,7 +9,7 @@
 
 #include "afu_json_info.h"
 
-#define BUFFER_SIZE (1024*128)
+#define BUFFER_SIZE (1024*1024)
 #define USER_CSR_BASE  32
 
 #define CACHELINE_BYTES 64
