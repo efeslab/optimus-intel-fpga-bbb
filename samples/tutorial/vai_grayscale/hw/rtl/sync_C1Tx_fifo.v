@@ -63,7 +63,7 @@
 //
 
 `include "vendor_defines.vh"
-module sync_C1Tx_fifo #(parameter DATA_WIDTH      =51,
+module sync_C1Tx_fifo_copy #(parameter DATA_WIDTH      =51,
                         CTL_WIDTH       =0,           // control data width
                         DEPTH_BASE2     =3, 
                         GRAM_STYLE      =`GRAM_AUTO,

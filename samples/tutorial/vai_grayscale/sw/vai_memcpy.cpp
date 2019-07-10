@@ -52,7 +52,7 @@ int vai_memcpy_test(void)
     fpga.mmioWrite64(MMIO_CSR_STATUS_ADDR, (uint64_t)stat/CL(1));
     fpga.mmioWrite64(MMIO_CSR_SRC_ADDR, (uint64_t)src/CL(1));
     fpga.mmioWrite64(MMIO_CSR_DST_ADDR, (uint64_t)dst/CL(1));
-    fpga.mmioWrite64(MMIO_CSR_NUM_LINES, 128/CL(1));
+    fpga.mmioWrite64(MMIO_CSR_NUM_LINES, 4096/CL(1));
     fpga.mmioWrite64(MMIO_CSR_CTL, 1);
 
     printf("start!\n");
@@ -62,20 +62,22 @@ int vai_memcpy_test(void)
         printf("running...\n");
     }
 
-    for (i=0; i<128; ++i) {
+#if 0
+    for (i=0; i<4096; ++i) {
         if (src[i] != dst[i]) {
-            printf("wrong at %zu, get %u instead of %u\n", i, dst[i], src[i]);
+            printf("wrong at %zu, get %x instead of %x\n", i, (uint32_t)dst[i], (uint32_t)src[i]);
             return -1;
         }
     }
+#endif
 
-    uint64_t *ptr = (uint64_t*)src;
+    uint64_t *ptr = (uint64_t*)dst;
 
     for (i=0; i<48; i++) {
         printf("%016llx\n", ptr[i]);
     }
 
-    printf("everything is ok!\n");
+    //printf("everything is ok!\n");
 
     dst = NULL;
     stat = NULL;

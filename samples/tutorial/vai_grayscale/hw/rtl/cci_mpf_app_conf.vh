@@ -36,4 +36,5 @@
 `define MPF_CONF_ENABLE_VTP 0
 
 // Ordered responses are required by the application
-`define MPF_CONF_SORT_READ_RESPONSES 0
+`define MPF_CONF_SORT_READ_RESPONSES 1
+`define MPF_CONF_PRESERVE_WRITE_MDATA 0

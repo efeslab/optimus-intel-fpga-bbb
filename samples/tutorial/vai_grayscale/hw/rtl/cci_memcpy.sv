@@ -80,7 +80,7 @@ module grayscale_app_top
         sRx <= cp2af_sRx;
     end
 
-    t_if_ccip_Tx sTx;
+    t_if_ccip_Tx sTx, pre_sTx;
 	always_ff @(posedge clk)
     begin
         af2cp_sTx.c0 <= sTx.c0;
@@ -90,7 +90,7 @@ module grayscale_app_top
     /* sTx.c1 needs a buffer */
     logic fifo_c1tx_rdack, fifo_c1tx_dout_v, fifo_c1tx_full, fifo_c1tx_almFull;
     t_if_ccip_c1_Tx fifo_c1tx_dout;
-	sync_C1Tx_fifo #(
+	sync_C1Tx_fifo_copy #(
 		.DATA_WIDTH($bits(t_if_ccip_c1_Tx)),
 		.CTL_WIDTH(0),
 		.DEPTH_BASE2($clog2(64)),
@@ -361,6 +361,25 @@ module grayscale_app_top
 			end
         end
     end
+
+    logic [7:0] rw_balance;
+    always_ff @(posedge clk)
+    begin
+        if (reset)
+        begin
+            rw_balance <= 0;
+        end
+        else
+        begin
+            case ({sTx.c0.valid, sRx.c1.rspValid})
+                2'b00: rw_balance <= rw_balance;
+                2'b01: rw_balance <= rw_balance - 1;
+                2'b10: rw_balance <= rw_balance + 1;
+                2'b11: rw_balance <= rw_balance;
+            endcase
+        end
+    end
+
 	logic [31:0] read_minus_write;
 	assign read_minus_write = csr_mem_read_idx - write_resp_cnt;
 	assign read_req_done = csr_mem_read_idx == csr_num_lines;
@@ -377,7 +396,7 @@ module grayscale_app_top
 		end
 		if (state == STATE_RUN)
 		begin
-			if (!sRx.c0TxAlmFull && !sRx.c1TxAlmFull && !fifo_c1tx_almFull)
+			if (!sRx.c0TxAlmFull && !sRx.c1TxAlmFull && !fifo_c1tx_almFull && rw_balance<62)
 				can_read <= 1'b1;
 			else
 				can_read <= 1'b0;
@@ -426,7 +445,7 @@ module grayscale_app_top
 			stage_reg_addr <= csr_dst_addr + csr_mem_read_idx;
 			stage_reg_negoff <= 16'(csr_mem_read_idx[15:0] - sRx.c0.hdr.mdata);	//explicitly let it overflow
 			stage_mdata <= sRx.c0.hdr.mdata;
-			stage_data <= sRx.c0.data;
+			//stage_data <= sRx.c0.data;
 		end
 		else
 		begin
@@ -478,6 +497,25 @@ module grayscale_app_top
 			sTx.c1.valid <= 1'b0;
 		end
 	end
+
+    /*
+     * the grayscale core
+     */
+    grayscale grayscale_uu(
+        .clk,
+        .reset,
+        .data_in(sRx.c0.data),
+        .valid_in(sRx.c0.rspValid),
+        .data_out(stage_data),
+        .valid_out()
+        );
+
+
+
+
+
+
+
 	/*
 	 * handle memory write response
 	 */
