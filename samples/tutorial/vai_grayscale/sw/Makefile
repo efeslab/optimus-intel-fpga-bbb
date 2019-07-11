@@ -33,12 +33,12 @@ endif
 CPPFLAGS += -I../../base/sw
 LDFLAGS += -luuid
 
-FPGA_LIBS = -lvai-c -ljson-c -lMPF_VAI
-ASE_LIBS = -lvai-c-ase -ljson-c -lMPF_VAI
+FPGA_LIBS = -lvai-c -ljson-c -lMPF_VAI -lpng
+ASE_LIBS = -lvai-c-ase -ljson-c -lMPF_VAI -lpng
 
 # Primary test name
 TEST = vai_memcpy
-BASE_FILE_SRC = vai_svc_wrapper.cpp
+BASE_FILE_SRC = vai_svc_wrapper.cpp image.cpp
 
 # Build directory
 OBJDIR = obj
