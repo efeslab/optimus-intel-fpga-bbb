@@ -1,0 +1,1 @@
+source $::env(FPGA_BBB_CCI_SRC)/BBB_vai_mux/hw/par/ccip_mux.qsf

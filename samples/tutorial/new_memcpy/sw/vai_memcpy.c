@@ -6,7 +6,7 @@
 #include <uuid/uuid.h>
 #include <signal.h>
 
-#include <vai/vai.h>
+#include <vai/fpga.h>
 #include "csr_addr.h"
 
 struct vai_afu_conn *conn;
@@ -56,8 +56,8 @@ int vai_memcpy_test(void)
     vai_afu_mmio_read(conn, MMIO_VMOFF+0x10, &id_hi);
     printf("%llx%llx\n", id_lo, id_hi);
 
-    vai_afu_mmio_write(conn, MMIO_VMOFF+MMIO_CSR_SOFT_RST, 1L);
-    vai_afu_mmio_write(conn, MMIO_VMOFF+MMIO_CSR_SOFT_RST, 0L);
+    //vai_afu_mmio_write(conn, MMIO_VMOFF+MMIO_CSR_SOFT_RST, 1L);
+    //vai_afu_mmio_write(conn, MMIO_VMOFF+MMIO_CSR_SOFT_RST, 0L);
     vai_afu_mmio_write(conn, MMIO_VMOFF+MMIO_CSR_STATUS_ADDR, (uint64_t)stat/CL(1));
     vai_afu_mmio_write(conn, MMIO_VMOFF+MMIO_CSR_SRC_ADDR, (uint64_t)src/CL(1));
     vai_afu_mmio_write(conn, MMIO_VMOFF+MMIO_CSR_DST_ADDR, (uint64_t)dst/CL(1));

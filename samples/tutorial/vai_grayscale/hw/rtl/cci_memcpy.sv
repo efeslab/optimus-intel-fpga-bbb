@@ -1,99 +1,96 @@
-//
-// Copyright (c) 2017, Intel Corporation
-// All rights reserved.
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met:
-//
-// Redistributions of source code must retain the above copyright notice, this
-// list of conditions and the following disclaimer.
-//
-// Redistributions in binary form must reproduce the above copyright notice,
-// this list of conditions and the following disclaimer in the documentation
-// and/or other materials provided with the distribution.
-//
-// Neither the name of the Intel Corporation nor the names of its contributors
-// may be used to endorse or promote products derived from this software
-// without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
-// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-// POSSIBILITY OF SUCH DAMAGE.
-
-`include "platform_if.vh"
+`include "cci_mpf_if.vh"
+`include "csr_mgr.vh"
 `include "afu_json_info.vh"
 
+module app_afu
+(
+    input logic clk,
+    cci_mpf_if.to_fiu fiu,
+    app_csrs.app csrs,
+    input logic c0NotEmpty,
+    input logic c1NotEmpty
+);
 
-module ccip_std_afu
-   (
-    // CCI-P Clocks and Resets
-    input           logic             pClk,              // 400MHz - CCI-P clock domain. Primary interface clock
-    input           logic             pClkDiv2,          // 200MHz - CCI-P clock domain.
-    input           logic             pClkDiv4,          // 100MHz - CCI-P clock domain.
-    input           logic             uClk_usr,          // User clock domain. Refer to clock programming guide  ** Currently provides fixed 300MHz clock **
-    input           logic             uClk_usrDiv2,      // User clock domain. Half the programmed frequency  ** Currently provides fixed 150MHz clock **
-    input           logic             pck_cp2af_softReset,      // CCI-P ACTIVE HIGH Soft Reset
-    input           logic [1:0]       pck_cp2af_pwrState,       // CCI-P AFU Power State
-    input           logic             pck_cp2af_error,          // CCI-P Protocol Error Detected
-
-    // Interface structures
-    input           t_if_ccip_Rx      pck_cp2af_sRx,        // CCI-P Rx Port
-    output          t_if_ccip_Tx      pck_af2cp_sTx         // CCI-P Tx Port
-    );
-
-
-    //
-    // Run the entire design at the standard CCI-P frequency (400 MHz).
-    //
-    logic clk;
-    assign clk = pClk;
-
-	//logic csr_soft_reset;
-    logic reset, reset_r;
-    always_ff @(posedge clk)
+    logic reset = 1'b1;
+    always @(posedge clk)
     begin
-        reset <= pck_cp2af_softReset;
-        reset_r <= ~pck_cp2af_softReset;
+        reset <= fiu.reset;
     end
 
-    // =========================================================================
-    //
-    //   Register requests.
-    //
-    // =========================================================================
+    t_if_ccip_Rx mpf2af_sRx;
+    t_if_ccip_Tx af2mpf_sTx;
 
-    //
-    // The incoming pck_cp2af_sRx and outgoing pck_af2cp_sTx must both be
-    // registered.  Here we register pck_cp2af_sRx and assign it to sRx.
-    // We also assign pck_af2cp_sTx to sTx here but don't register it.
-    // The code below never uses combinational logic to write sTx.
-    //
+    always_comb
+    begin
+		mpf2af_sRx.c0 = fiu.c0Rx;
+        mpf2af_sRx.c1 = fiu.c1Rx;
+
+        mpf2af_sRx.c0TxAlmFull = fiu.c0TxAlmFull;
+        mpf2af_sRx.c1TxAlmFull = fiu.c1TxAlmFull;
+
+        fiu.c0Tx = cci_mpf_cvtC0TxFromBase(af2mpf_sTx.c0);
+        if (cci_mpf_c0TxIsReadReq(fiu.c0Tx))
+        begin
+            fiu.c0Tx.hdr.ext.addrIsVirtual = 1'b1;
+            fiu.c0Tx.hdr.ext.mapVAtoPhysChannel = 1'b1;
+            fiu.c0Tx.hdr.ext.checkLoadStoreOrder = 1'b1;
+        end
+
+        fiu.c1Tx = cci_mpf_cvtC1TxFromBase(af2mpf_sTx.c1);
+        if (cci_mpf_c1TxIsWriteReq(fiu.c1Tx))
+        begin
+            fiu.c1Tx.hdr.ext.addrIsVirtual = 1'b1;
+            fiu.c1Tx.hdr.ext.mapVAtoPhysChannel = 1'b1;
+            fiu.c1Tx.hdr.ext.checkLoadStoreOrder = 1'b1;
+            fiu.c1Tx.hdr.pwrite = t_cci_mpf_c1_PartialWriteHdr'(0);
+        end
+
+        fiu.c2Tx = af2mpf_sTx.c2;
+    end
+
+	grayscale_app_top app_cci(
+        .clk,
+        .reset,
+        .cp2af_sRx(mpf2af_sRx),
+        .af2cp_sTx(af2mpf_sTx),
+        .csrs,
+        .c0NotEmpty,
+        .c1NotEmpty
+        );
+
+endmodule
+
+module grayscale_app_top
+(
+    input logic clk,
+    input logic reset,
+    input t_if_ccip_Rx cp2af_sRx,
+    output t_if_ccip_Tx af2cp_sTx,
+    app_csrs.app csrs,
+    input logic c0NotEmpty,
+    input logic c1NotEmpty
+);
+
+    logic reset_r;
+    assign reset_r = ~reset;
 
     t_if_ccip_Rx sRx;
     always_ff @(posedge clk)
     begin
-        sRx <= pck_cp2af_sRx;
+        sRx <= cp2af_sRx;
     end
 
-    t_if_ccip_Tx sTx;
+    t_if_ccip_Tx sTx, pre_sTx;
 	always_ff @(posedge clk)
     begin
-        pck_af2cp_sTx.c0 <= sTx.c0;
-        pck_af2cp_sTx.c2 <= sTx.c2;
+        af2cp_sTx.c0 <= sTx.c0;
     end
+    assign af2cp_sTx.c2.mmioRdValid = 1'b0;
 
     /* sTx.c1 needs a buffer */
     logic fifo_c1tx_rdack, fifo_c1tx_dout_v, fifo_c1tx_full, fifo_c1tx_almFull;
     t_if_ccip_c1_Tx fifo_c1tx_dout;
-	sync_C1Tx_fifo #(
+	sync_C1Tx_fifo_copy #(
 		.DATA_WIDTH($bits(t_if_ccip_c1_Tx)),
 		.CTL_WIDTH(0),
 		.DEPTH_BASE2($clog2(64)),
@@ -110,7 +107,7 @@ module ccip_std_afu
 		.T2_fifo_dout(fifo_c1tx_dout),
 		.T0_fifo_ctlout(),
 		.T0_fifo_dout_v(fifo_c1tx_dout_v),
-		.T0_fifo_empty(fifo_c1tx_empty),
+		.T0_fifo_empty(),
 		.T0_fifo_full(fifo_c1tx_full),
 		.T0_fifo_count(),
 		.T0_fifo_almFull(fifo_c1tx_almFull),
@@ -126,6 +123,7 @@ module ccip_std_afu
         begin
             fifo_c1tx_dout_v_q <= 0;
             fifo_c1tx_dout_v_qq <= 0;
+            af2cp_sTx.c1.valid <= 0;
         end
         else
         begin
@@ -133,9 +131,9 @@ module ccip_std_afu
             fifo_c1tx_dout_v_qq <= fifo_c1tx_dout_v_q;
 
             if (fifo_c1tx_dout_v_qq)
-                pck_af2cp_sTx.c1 <= fifo_c1tx_dout;
+                af2cp_sTx.c1 <= fifo_c1tx_dout;
             else
-                pck_af2cp_sTx.c1 <= t_if_ccip_c1_Tx'(0);
+                af2cp_sTx.c1 <= t_if_ccip_c1_Tx'(0);
         end
     end
         
@@ -177,28 +175,28 @@ module ccip_std_afu
     // Implement the device feature list by responding to MMIO reads.
     //
 	//RW
-	localparam MMIO_CSR_STATUS_ADDR = 16'h018 >> 2;
-	localparam MMIO_CSR_SRC_ADDR = 16'h020 >> 2;
-	localparam MMIO_CSR_DST_ADDR = 16'h028 >> 2;
-	localparam MMIO_CSR_NUM_LINES = 16'h030 >> 2;
+	localparam MMIO_CSR_STATUS_ADDR = 0;
+	localparam MMIO_CSR_SRC_ADDR = 1;
+	localparam MMIO_CSR_DST_ADDR = 2;
+	localparam MMIO_CSR_NUM_LINES = 3;
 	//RO
-	localparam MMIO_CSR_MEM_READ_IDX = 16'h38 >> 2;
-	localparam MMIO_CSR_WRITE_REQ_CNT = 16'h40 >> 2;
-	localparam MMIO_CSR_WRITE_RESP_CNT = 16'h48 >> 2;
-	localparam MMIO_CSR_STATE = 16'h50 >> 2;
-	localparam MMIO_CSR_CLK_CNT = 16'h58 >> 2;
-	localparam MMIO_CSR_WRITE_FULL_CNT = 16'h60 >> 2;
-	//localparam MMIO_CSR_SOFT_RESET_CNT = 16'h68 >> 2;
+	localparam MMIO_CSR_MEM_READ_IDX = 4;
+	localparam MMIO_CSR_WRITE_REQ_CNT = 5;
+	localparam MMIO_CSR_WRITE_RESP_CNT = 6;
+	localparam MMIO_CSR_STATE = 7;
+	localparam MMIO_CSR_CLK_CNT = 8;
+	localparam MMIO_CSR_WRITE_FULL_CNT = 9;
 	//WO
-	localparam MMIO_CSR_CTL = 16'h070 >> 2;
-	localparam MMIO_CSR_WR_THRESHOLD = 16'h078 >> 2;
-	//localparam MMIO_CSR_SOFT_RST = 16'h080 >> 2;
+	localparam MMIO_CSR_CTL = 10;
+	localparam MMIO_CSR_WR_THRESHOLD = 11;
+
     // Memory address to which this AFU will write.
 	localparam DEFAULT_CSR_STATUS_ADDR = t_ccip_clAddr'(0);
 	localparam DEFAULT_CSR_SRC_ADDR = t_ccip_clAddr'(0);
 	localparam DEFAULT_CSR_DST_ADDR = t_ccip_clAddr'(0);
 	localparam DEFAULT_CSR_NUM_LINES = 32'h0;
 	localparam DEFAULT_CSR_WR_THRESHOLD = 32'h40;
+
     t_ccip_clAddr csr_status_addr;
     t_ccip_clAddr csr_src_addr;
     t_ccip_clAddr csr_dst_addr;
@@ -222,74 +220,37 @@ module ccip_std_afu
     t_state;
     t_state state;
 
-
-    always_ff @(posedge clk)
+    always_comb
     begin
-        if (reset)
+        csrs.afu_id = `AFU_ACCEL_UUID;
+
+        for (int i = 0; i < NUM_APP_CSRS; i = i + 1)
         begin
-            sTx.c2.mmioRdValid <= 1'b0;
+            csrs.cpu_rd_csrs[i].data = 64'(0);
         end
-        else
-        begin
-            // Always respond with something for every read request
-            sTx.c2.mmioRdValid <= is_csr_read;
 
-            // The unique transaction ID matches responses to requests
-            sTx.c2.hdr.tid <= mmio_req_hdr.tid;
+        csrs.cpu_rd_csrs[MMIO_CSR_STATUS_ADDR].data = t_ccip_mmioData'(csr_status_addr);
+        csrs.cpu_rd_csrs[MMIO_CSR_SRC_ADDR].data = t_ccip_mmioData'(csr_src_addr);
+		csrs.cpu_rd_csrs[MMIO_CSR_DST_ADDR].data = t_ccip_mmioData'(csr_dst_addr);
+		csrs.cpu_rd_csrs[MMIO_CSR_NUM_LINES].data = t_ccip_mmioData'(csr_num_lines);
+		csrs.cpu_rd_csrs[MMIO_CSR_MEM_READ_IDX].data = t_ccip_mmioData'(csr_mem_read_idx);
+		csrs.cpu_rd_csrs[MMIO_CSR_WRITE_REQ_CNT].data = t_ccip_mmioData'(write_req_cnt);
+		csrs.cpu_rd_csrs[MMIO_CSR_WRITE_RESP_CNT].data = t_ccip_mmioData'(write_resp_cnt);
 
-            // Addresses are of 32-bit objects in MMIO space.  Addresses
-            // of 64-bit objects are thus multiples of 2.
-            case (mmio_req_hdr.address)
-              0: // AFU DFH (device feature header)
-                begin
-                    // Here we define a trivial feature list.  In this
-                    // example, our AFU is the only entry in this list.
-                    sTx.c2.data <= t_ccip_mmioData'(0);
-                    // Feature type is AFU
-                    sTx.c2.data[63:60] <= 4'h1;
-                    // End of list (last entry in list)
-                    sTx.c2.data[40] <= 1'b1;
-                end
 
-              // AFU_ID_L
-              2: sTx.c2.data <= afu_id[63:0];
+        csrs.cpu_rd_csrs[MMIO_CSR_STATE].data = t_ccip_mmioData'(0);
+        csrs.cpu_rd_csrs[MMIO_CSR_STATE].data[1:0] = state;
+		csrs.cpu_rd_csrs[MMIO_CSR_STATE].data[8] = read_req_done;
+        csrs.cpu_rd_csrs[MMIO_CSR_STATE].data[9] = sRx.c0TxAlmFull;
+		csrs.cpu_rd_csrs[MMIO_CSR_STATE].data[10] = sRx.c1TxAlmFull;
+		csrs.cpu_rd_csrs[MMIO_CSR_STATE].data[16] = can_read;
+		csrs.cpu_rd_csrs[MMIO_CSR_STATE].data[17] = read_stage_2;
+		csrs.cpu_rd_csrs[MMIO_CSR_STATE].data[18] = write_stage_2;
 
-              // AFU_ID_H
-              4: sTx.c2.data <= afu_id[127:64];
+		csrs.cpu_rd_csrs[MMIO_CSR_CLK_CNT].data = t_ccip_mmioData'(clk_cnt);
+		csrs.cpu_rd_csrs[MMIO_CSR_WRITE_FULL_CNT].data = t_ccip_mmioData'(write_full_cnt);
 
-              // DFH_RSVD0
-              6: sTx.c2.data <= t_ccip_mmioData'(0);
-
-              // DFH_RSVD1
-              8: sTx.c2.data <= t_ccip_mmioData'(0);
-
-			  MMIO_CSR_STATUS_ADDR: sTx.c2.data <= t_ccip_mmioData'(csr_status_addr);
-			  MMIO_CSR_SRC_ADDR: sTx.c2.data <= t_ccip_mmioData'(csr_src_addr);
-			  MMIO_CSR_DST_ADDR: sTx.c2.data <= t_ccip_mmioData'(csr_dst_addr);
-			  MMIO_CSR_NUM_LINES: sTx.c2.data <= t_ccip_mmioData'(csr_num_lines);
-			  MMIO_CSR_MEM_READ_IDX: sTx.c2.data <= t_ccip_mmioData'(csr_mem_read_idx);
-			  MMIO_CSR_WRITE_REQ_CNT: sTx.c2.data <= t_ccip_mmioData'(write_req_cnt);
-			  MMIO_CSR_WRITE_RESP_CNT: sTx.c2.data <= t_ccip_mmioData'(write_resp_cnt);
-			  MMIO_CSR_STATE:
-			  begin
-			  	sTx.c2.data <= t_ccip_mmioData'(0);
-				sTx.c2.data[1:0] <= state;
-				sTx.c2.data[8] <= read_req_done;
-				sTx.c2.data[9] <= sRx.c0TxAlmFull;
-				sTx.c2.data[10] <= sRx.c1TxAlmFull;
-				sTx.c2.data[16] <= can_read;
-				sTx.c2.data[17] <= read_stage_2;
-				sTx.c2.data[18] <= write_stage_2;
-			  end
-			  MMIO_CSR_CLK_CNT: sTx.c2.data <= t_ccip_mmioData'(clk_cnt);
-			  MMIO_CSR_WRITE_FULL_CNT: sTx.c2.data <= t_ccip_mmioData'(write_full_cnt);
-			  //MMIO_CSR_SOFT_RESET_CNT: sTx.c2.data <= t_ccip_mmioData'(soft_reset_cnt);
-
-              default: sTx.c2.data <= t_ccip_mmioData'(0);
-            endcase
-        end
     end
-
 
     //
     // CSR write handling.  Host software must tell the AFU the memory address
@@ -300,60 +261,58 @@ module ccip_std_afu
 	logic csr_ctl_start;
     always_ff @(posedge clk)
     begin
-		if (pck_cp2af_softReset)
+		if (reset)
 		begin
 			csr_status_addr <= DEFAULT_CSR_SRC_ADDR;
 			csr_src_addr <= DEFAULT_CSR_SRC_ADDR;
 			csr_dst_addr <= DEFAULT_CSR_DST_ADDR;
 			csr_num_lines <= DEFAULT_CSR_NUM_LINES;
 			csr_ctl_start <= 1'b0;
-			//csr_soft_reset <= 1'b0;
-			//soft_reset_cnt = 32'h0;
 		end
-        else if (is_csr_write)
+        else
         begin
-			case(mmio_req_hdr.address)
-				// CSR_STATUS_ADDR Start physical address for status flag. Consist of completion flag, num of cycles used.
-				MMIO_CSR_STATUS_ADDR: csr_status_addr <= t_ccip_clAddr'(sRx.c0.data);
-				// CSR_SRC_ADDR Start physical address for source buffer. All read requests are targetted to this region.
-				MMIO_CSR_SRC_ADDR: csr_src_addr <= t_ccip_clAddr'(sRx.c0.data);
-				// CSR_DST_ADDR Start physical address for destination buffer. All write requests are targetted to this region.
-				MMIO_CSR_DST_ADDR: csr_dst_addr <= t_ccip_clAddr'(sRx.c0.data);
-				// CSR_NUM_LINES Number of cache lines
-				MMIO_CSR_NUM_LINES: csr_num_lines <= sRx.c0.data[31:0];
-				// CSR_CTL Controls test flow start
-				MMIO_CSR_CTL:
-				begin
-					if (sRx.c0.data[0] == 1'b1 &&
-						csr_src_addr != DEFAULT_CSR_SRC_ADDR &&
-						csr_dst_addr != DEFAULT_CSR_DST_ADDR &&
-						csr_num_lines != DEFAULT_CSR_NUM_LINES)
-					begin
-						csr_ctl_start <= 1'b1;
-					end
-				end
-                /*
-				MMIO_CSR_SOFT_RST:
-				begin
-                    if (sRx.c0.data != 0)
-                    begin
-                        csr_soft_reset <= 1'b1;
-                        soft_reset_cnt <= soft_reset_cnt + 1;
-                    end
-                    else
-                        csr_soft_reset <= 1'b0;
-				end
-                */
-				default:
-				begin
-					csr_ctl_start <= 1'b0;
-				end
-			endcase
+
+            if (csrs.cpu_wr_csrs[MMIO_CSR_STATUS_ADDR].en)
+            begin
+                $display("CSR write: MMIO_CSR_STATUS_ADDR");
+                csr_status_addr <= t_ccip_clAddr'(csrs.cpu_wr_csrs[MMIO_CSR_STATUS_ADDR].data);
+            end
+
+            if (csrs.cpu_wr_csrs[MMIO_CSR_SRC_ADDR].en)
+            begin
+                $display("CSR write: MMIO_CSR_SRC_ADDR");
+				csr_src_addr <= t_ccip_clAddr'(csrs.cpu_wr_csrs[MMIO_CSR_SRC_ADDR].data);
+            end
+
+            if (csrs.cpu_wr_csrs[MMIO_CSR_DST_ADDR].en)
+            begin
+                $display("CSR write: MMIO_CSR_DST_ADDR");
+                csr_dst_addr <= t_ccip_clAddr'(csrs.cpu_wr_csrs[MMIO_CSR_DST_ADDR].data);
+            end
+
+            if (csrs.cpu_wr_csrs[MMIO_CSR_NUM_LINES].en)
+            begin
+                $display("CSR write: MMIO_CSR_NUM_LINES");
+                csr_num_lines <= csrs.cpu_wr_csrs[MMIO_CSR_NUM_LINES].data[31:0];
+            end
+
+            if (csrs.cpu_wr_csrs[MMIO_CSR_CTL].en)
+			begin
+                $display("CSR write: MMIO_CSR_CTL");
+                if (csrs.cpu_wr_csrs[MMIO_CSR_CTL].data[0] == 1'b1 &&
+                    csr_src_addr != DEFAULT_CSR_SRC_ADDR &&
+                    csr_dst_addr != DEFAULT_CSR_DST_ADDR &&
+                    csr_num_lines != DEFAULT_CSR_NUM_LINES)
+                begin
+                    csr_ctl_start <= 1'b1;
+                end
+			end
+            else
+            begin
+                csr_ctl_start <= 1'b0;
+            end
+
         end
-		else
-		begin
-			csr_ctl_start <= 1'b0;
-		end
     end
     
 
@@ -402,6 +361,25 @@ module ccip_std_afu
 			end
         end
     end
+
+    logic [7:0] rw_balance;
+    always_ff @(posedge clk)
+    begin
+        if (reset)
+        begin
+            rw_balance <= 0;
+        end
+        else
+        begin
+            case ({sTx.c0.valid, sRx.c1.rspValid})
+                2'b00: rw_balance <= rw_balance;
+                2'b01: rw_balance <= rw_balance - 1;
+                2'b10: rw_balance <= rw_balance + 1;
+                2'b11: rw_balance <= rw_balance;
+            endcase
+        end
+    end
+
 	logic [31:0] read_minus_write;
 	assign read_minus_write = csr_mem_read_idx - write_resp_cnt;
 	assign read_req_done = csr_mem_read_idx == csr_num_lines;
@@ -418,7 +396,7 @@ module ccip_std_afu
 		end
 		if (state == STATE_RUN)
 		begin
-			if (!sRx.c0TxAlmFull && !sRx.c1TxAlmFull && !fifo_c1tx_almFull)
+			if (!sRx.c0TxAlmFull && !sRx.c1TxAlmFull && !fifo_c1tx_almFull && rw_balance<62)
 				can_read <= 1'b1;
 			else
 				can_read <= 1'b0;
@@ -467,7 +445,7 @@ module ccip_std_afu
 			stage_reg_addr <= csr_dst_addr + csr_mem_read_idx;
 			stage_reg_negoff <= 16'(csr_mem_read_idx[15:0] - sRx.c0.hdr.mdata);	//explicitly let it overflow
 			stage_mdata <= sRx.c0.hdr.mdata;
-			stage_data <= sRx.c0.data;
+			//stage_data <= sRx.c0.data;
 		end
 		else
 		begin
@@ -519,6 +497,25 @@ module ccip_std_afu
 			sTx.c1.valid <= 1'b0;
 		end
 	end
+
+    /*
+     * the grayscale core
+     */
+    grayscale grayscale_uu(
+        .clk,
+        .reset,
+        .data_in(sRx.c0.data),
+        .valid_in(sRx.c0.rspValid),
+        .data_out(stage_data),
+        .valid_out()
+        );
+
+
+
+
+
+
+
 	/*
 	 * handle memory write response
 	 */

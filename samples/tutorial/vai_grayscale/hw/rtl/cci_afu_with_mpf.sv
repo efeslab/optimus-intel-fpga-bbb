@@ -47,7 +47,7 @@
 `include "cci_mpf_app_conf_default.vh"
 `include "csr_mgr.vh"
 
-module ccip_std_afu
+module ccip_std_afu_async
    (
     // CCI-P Clocks and Resets
     input           logic             pClk,              // 400MHz - CCI-P clock domain. Primary interface clock
@@ -70,9 +70,9 @@ module ccip_std_afu
     // JSON file.  The Platform Interface Manager provides these macros.
     //
     logic afu_clk;
-    assign afu_clk = `PLATFORM_PARAM_CCI_P_CLOCK;
+    assign afu_clk = pClk;
     logic afu_reset;
-    assign afu_reset = `PLATFORM_PARAM_CCI_P_RESET;
+    assign afu_reset = pck_cp2af_softReset;
 
 
     //
@@ -194,7 +194,7 @@ module ccip_std_afu
         // Virtual addresses are indicated by setting the
         // addrIsVirtual flag in the MPF extended Tx channel
         // request header.
-        .ENABLE_VTP(`MPF_CONF_ENABLE_VTP),
+        //.ENABLE_VTP(`MPF_CONF_ENABLE_VTP),
 
         // Enable mapping of eVC_VA to physical channels?  AFUs that both use
         // eVC_VA and read back memory locations written by the AFU must either

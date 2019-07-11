@@ -102,7 +102,7 @@ module ccip_std_afu
     // its feature chain.
     //
 `ifndef MPF_DISABLED
-    localparam MPF_DFH_MMIO_ADDR = 'h400;
+    localparam MPF_DFH_MMIO_ADDR = 'h1000;
 `else
     localparam MPF_DFH_MMIO_ADDR = 0;
 `endif
@@ -188,13 +188,6 @@ module ccip_std_afu
         // and isn't consuming Mdata, then setting this to 0 eliminates
         // the memory and logic inside MPF for preserving Mdata.
         .PRESERVE_WRITE_MDATA(`MPF_CONF_PRESERVE_WRITE_MDATA),
-
-        // Enable virtual to physical translation?  When enabled, MPF
-        // accepts requests with either virtual or physical addresses.
-        // Virtual addresses are indicated by setting the
-        // addrIsVirtual flag in the MPF extended Tx channel
-        // request header.
-        .ENABLE_VTP(`MPF_CONF_ENABLE_VTP),
 
         // Enable mapping of eVC_VA to physical channels?  AFUs that both use
         // eVC_VA and read back memory locations written by the AFU must either
