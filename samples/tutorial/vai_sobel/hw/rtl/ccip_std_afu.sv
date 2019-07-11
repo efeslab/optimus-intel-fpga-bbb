@@ -1,11 +1,11 @@
 import ccip_if_pkg::*;
 
 `ifdef WITH_MUX
-        `define GRAYSCALE_TOP_IFC_NAME `GRAYSCALE_WITHMUX_NAME
+        `define SOBEL_TOP_IFC_NAME `SOBEL_WITHMUX_NAME
 `else
-        `define GRAYSCALE_TOP_IFC_NAME `GRAYSCALE_NOMUX_NAME
+        `define SOBEL_TOP_IFC_NAME `SOBEL_NOMUX_NAME
 `endif
-module `GRAYSCALE_TOP_IFC_NAME
+module `SOBEL_TOP_IFC_NAME
 (
   // CCI-P Clocks and Resets
   input           logic             pClk,       

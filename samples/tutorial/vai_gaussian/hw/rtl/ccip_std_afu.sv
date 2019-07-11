@@ -1,11 +1,11 @@
 import ccip_if_pkg::*;
 
 `ifdef WITH_MUX
-        `define GRAYSCALE_TOP_IFC_NAME `GRAYSCALE_WITHMUX_NAME
+        `define GAUSSIAN_TOP_IFC_NAME `GAUSSIAN_WITHMUX_NAME
 `else
-        `define GRAYSCALE_TOP_IFC_NAME `GRAYSCALE_NOMUX_NAME
+        `define GAUSSIAN_TOP_IFC_NAME `GAUSSIAN_NOMUX_NAME
 `endif
-module `GRAYSCALE_TOP_IFC_NAME
+module `GAUSSIAN_TOP_IFC_NAME
 (
   // CCI-P Clocks and Resets
   input           logic             pClk,       
