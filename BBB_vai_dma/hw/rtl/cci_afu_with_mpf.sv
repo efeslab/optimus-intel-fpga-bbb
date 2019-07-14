@@ -46,6 +46,7 @@
 `include "cci_mpf_platform.vh"
 `include "cci_mpf_app_conf_default.vh"
 `include "csr_mgr.vh"
+`include "dma.vh"
 
 module ccip_std_afu
    (
@@ -283,6 +284,45 @@ module ccip_std_afu
         );
 
 `endif // !`ifndef MPF_DISABLED
+    // ====================================================================
+    //
+    //  Instantiate the dma.
+    //
+    // ====================================================================
+    logic reset = 1'b1;
+    always @(posedge afu_clk)
+    begin
+        reset <= fiu.reset;
+    end
+
+    to_afu   t_afu;
+    from_afu f_afu;
+
+    // Rx
+    always_comb
+    begin
+        f_afu.sRx.c0          = afu.c0Rx;
+        f_afu.sRx.c1          = afu.c1Rx;
+        f_afu.sRx.c0TxAlmFull = afu.c0TxAlmFull;
+        f_afu.sRx.c1TxAlmFull = afu.c1TxAlmFull;
+    end
+
+    // Tx
+    always_comb
+    begin
+        afu.c0Tx <= t_afu.sTx.c0;
+        afu.c1Tx <= t_afu.sTx.c1;
+    end
+
+    dma
+    dma1
+    (
+        .clk(afu_clk),
+        .soft_reset(reset),
+
+        .afu_to_dma(f_afu),
+        .dma_to_afu(t_afu)
+    );
 
     // ====================================================================
     //
@@ -294,8 +334,12 @@ module ccip_std_afu
       app
        (
         .clk(afu_clk),
-        .fiu(afu),
+        .reset(reset),
         .csrs,
+
+        .a_out(f_afu.d_in),
+        .a_in(t_afu.d_out),
+
         .c0NotEmpty,
         .c1NotEmpty
         );

@@ -1,6 +1,10 @@
+# Include MPF
+C:${FPGA_BBB_CCI_SRC}/BBB_cci_mpf/hw/rtl/cci_mpf_sources.txt
 +incdir+.
 
 a10_ram_sdp_wysiwyg.v
 gram_sdp.v
 fifo.v
-dma.vh
+csr_mgr.sv
+dma.sv
+cci_afu_with_mpf.sv

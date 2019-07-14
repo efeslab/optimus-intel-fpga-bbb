@@ -123,8 +123,13 @@ int main()
     struct timespec tim2, tim = { 0, 250000000L };
 
     int count = 0;
+    int index = 0;
     while(buf[size-1] != bufcpy[size-1])
     {
+        while (buf[index] == bufcpy[index]) {
+            printf("Copied %d item\n", index);
+            ++index;
+        }
         nanosleep(&tim, &tim2);
         ++count;
 
