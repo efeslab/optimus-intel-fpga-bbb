@@ -6,33 +6,19 @@
 module app_afu
     (
         input  logic clk,
+        input  logic reset,
 
-        // Connection toward the host.  Reset comes in here.
-        cci_mpf_if.to_fiu fiu,
+        // MMIO Read and write
         app_csrs.app      csrs,
+
+        output dma_in     a_out,
+        input  dma_out    a_in,
 
         // MPF tracks outstanding requests.  These will be true as long as
         // reads or unacknowledged writes are still in flight.
         input  logic c0NotEmpty,
         input  logic c1NotEmpty
     );
-
-    logic reset = 1'b1;
-    always @(posedge clk)
-    begin
-        reset <= fiu.reset;
-    end
-
-    // buffer
-    t_ccip_clAddr buf_addr;
-    t_ccip_clAddr bufcpy_addr;
-    logic [64:0]  size;
-
-    from_afu f_afu;
-    to_afu   t_afu;
-
-    assign f_afu.rd_ready = 1;
-    assign f_afu.wr_ready = 1;
 
     always_comb
     begin
@@ -44,67 +30,60 @@ module app_afu
         end
     end
 
+    logic [3:0] mmio_read_done;
+
     always_ff @(posedge clk)
     begin
         if (reset)
         begin
-            f_afu.rd_addr <= 0;
-            f_afu.wr_addr <= 0;
-            f_afu.rd_len <= 0;
-            f_afu.wr_len <= 0;
+            a_out.rd_addr <= 0;
+            a_out.wr_addr <= 0;
+            a_out.rd_len <= 0;
+            a_out.wr_len <= 0;
         end
         else
         begin
             if (csrs.cpu_wr_csrs[0].en)
             begin
-                f_afu.rd_addr <= t_ccip_clAddr'(csrs.cpu_wr_csrs[0].data);
+                a_out.rd_addr <= t_ccip_clAddr'(csrs.cpu_wr_csrs[0].data);
+                mmio_read_done[0] <= 1'b1;
             end
 
             if (csrs.cpu_wr_csrs[1].en)
             begin
-                f_afu.wr_addr <= t_ccip_clAddr'(csrs.cpu_wr_csrs[1].data);
+                a_out.wr_addr <= t_ccip_clAddr'(csrs.cpu_wr_csrs[1].data);
+                mmio_read_done[1] <= 1'b1;
             end
 
             if (csrs.cpu_wr_csrs[2].en)
             begin
-                f_afu.rd_len  <= csrs.cpu_wr_csrs[2].data >> 6;
-                f_afu.wr_len  <= csrs.cpu_wr_csrs[2].data >> 6;
+                a_out.rd_len  <= csrs.cpu_wr_csrs[2].data >> 6;
+                a_out.wr_len  <= csrs.cpu_wr_csrs[2].data >> 6;
+                mmio_read_done[2] <= 1'b1;
             end
         end
     end
 
-
-
-    // Rx
     always_comb
     begin
-        f_afu.sRx.c0 = fiu.c0Rx;
-        f_afu.sRx.c1 = fiu.c1Rx;
-        f_afu.sRx.c0TxAlmFull = fiu.c0TxAlmFull;
-        f_afu.sRx.c1TxAlmFull = fiu.c1TxAlmFull;
+        a_out.begin_copy <= (mmio_read_done == 'b111);
     end
 
-    // Tx
-    always_comb
+    always_ff @(posedge clk)
     begin
-        fiu.c0Tx <= t_afu.sTx.c0;
-        fiu.c1Tx <= t_afu.sTx_c1.c1;
+        if (reset)
+        begin
+            a_out.wr_out <= 0;
+            //a_out.rd_ready <= 0;
+        end
+        else
+        begin
+            a_out.wr_out  <= a_in.wr_ready;
+            //a_out.rd_ready <= a_in.rd_out;
+        end
     end
 
-    assign f_afu.wr_data = t_afu.rd_data;
-
-
-
-    dma
-    dma1
-    (
-        .clk(clk),
-        .soft_reset(reset),
-
-        .afu_to_dma(f_afu),
-        .dma_to_afu(t_afu),
-        .begin_again(0)
-
-    );
+    assign a_out.wr_data = a_in.rd_data;
+    assign a_out.rd_ready = 1;
 
 endmodule
