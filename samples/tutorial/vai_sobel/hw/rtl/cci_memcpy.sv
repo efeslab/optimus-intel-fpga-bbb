@@ -93,7 +93,7 @@ module sobel_app_top
 	sync_C1Tx_fifo_copy #(
 		.DATA_WIDTH($bits(t_if_ccip_c1_Tx)),
 		.CTL_WIDTH(0),
-		.DEPTH_BASE2($clog2(64)),
+		.DEPTH_BASE2($clog2(256)),
 		.GRAM_MODE(3),
 		.FULL_THRESH(64-8)
 	)
