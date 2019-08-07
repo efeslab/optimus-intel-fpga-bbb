@@ -95,7 +95,7 @@ module grayscale_app_top
 		.CTL_WIDTH(0),
 		.DEPTH_BASE2($clog2(256)),
 		.GRAM_MODE(3),
-		.FULL_THRESH(64-8)
+		.FULL_THRESH(256-8)
 	)
 	inst_fifo_c1tx(
 		.Resetb(reset_r),
