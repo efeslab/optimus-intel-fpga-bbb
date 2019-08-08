@@ -98,7 +98,7 @@ module dma(
     );
 
     logic fifo_c0rx_dout_v_q, fifo_c0rx_dout_v_qq;
-    assign fifo_c0rx_rdack = fifo_c0rx_dout_v && afu_to_dma.d_in.rd_ready;// && !fifo_c0rx_empty;
+    assign fifo_c0rx_rdack = fifo_c0rx_dout_v && afu_to_dma.d_in.rd_ready;
 
     t_if_ccip_Rx sRx;
 
@@ -235,24 +235,17 @@ module dma(
     // read response logic
     t_ccip_clData rd_data;
 
-    logic can_send_write_req;
+    // logic can_send_write_req;
 
     always_ff @(posedge clk)
     begin
         if (reset)
         begin
             rd_data <= 0;
-            //next_write_idx <= 0;
-            can_send_write_req <= 0;
         end
         else if (afu_to_dma.sRx.c0.rspValid)
         begin
             rd_data <= afu_to_dma.sRx.c0.data;
-            can_send_write_req <= 1;
-        end
-        else
-        begin
-            can_send_write_req <= 0;
         end
     end
 
@@ -280,12 +273,12 @@ module dma(
         end
         else
         begin
-            sTx_c1_fifo.valid <= (state == STATE_RUN  && can_send_write_req);
-            if (state == STATE_RUN  && can_send_write_req)
+            sTx_c1_fifo.valid <= (state == STATE_RUN  && afu_to_dma.d_in.wr_out && dma_to_afu.d_out.wr_ready);
+            if (state == STATE_RUN  && afu_to_dma.d_in.wr_out && dma_to_afu.d_out.wr_ready)
             begin
                 next_write_idx <= next_write_idx + 1;
             end
-            sTx_c1_fifo.data <= rd_data;
+            sTx_c1_fifo.data <= afu_to_dma.d_in.wr_data;
             sTx_c1_fifo.hdr <= wr_hdr;
         end
     end
@@ -302,7 +295,6 @@ module dma(
         else if (afu_to_dma.sRx.c1.rspValid)
         begin
             written_size <= written_size + 1;
-            $display("Written  item %d", written_size);
         end
     end
 
