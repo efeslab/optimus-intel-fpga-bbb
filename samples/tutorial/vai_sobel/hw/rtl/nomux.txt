@@ -1,2 +1,3 @@
+QI:../par/cci_base_par_files.qsf
 C:./sources.txt
 cci_memcpy.json
