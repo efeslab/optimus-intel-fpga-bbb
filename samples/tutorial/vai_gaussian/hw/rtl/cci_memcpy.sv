@@ -394,7 +394,10 @@ module gaussian_app_top
 			can_read <= 1'b0;
 			read_stage_2 <= 1'b0;
 		end
-		if (state == STATE_RUN)
+        else if (state == STATE_IDLE) begin
+            csr_mem_read_idx <= 32'hffffffff;
+        end
+		else if (state == STATE_RUN)
 		begin
 			if (!sRx.c0TxAlmFull && !sRx.c1TxAlmFull && !fifo_c1tx_almFull && rw_balance<62)
 				can_read <= 1'b1;
@@ -525,6 +528,9 @@ module gaussian_app_top
 		begin
 			write_resp_cnt <= 32'h0;
 		end
+        else if (state == STATE_IDLE) begin
+            write_resp_cnt <= 0;
+        end
 		else if (state == STATE_RUN && sRx.c1.rspValid == 1'b1)
         begin
             if (sRx.c1.hdr.format == 1'b0)
