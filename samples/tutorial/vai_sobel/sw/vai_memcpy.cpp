@@ -126,7 +126,7 @@ int main() {
 
     clock_gettime(CLOCK_MONOTONIC_RAW, &start);
 
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < 5; i++) {
         process_image(fpga, image, src, dst, stat);
         //printf("image cnt: %d\n", k++);
     }

@@ -369,8 +369,10 @@ module grayscale_app_top
         begin
             rw_balance <= 0;
         end
-        else
-        begin
+        else if (state == STATE_IDLE) begin
+            rw_balance <= 0;
+        end
+        else begin
             case ({sTx.c0.valid, sRx.c1.rspValid})
                 2'b00: rw_balance <= rw_balance;
                 2'b01: rw_balance <= rw_balance - 1;
