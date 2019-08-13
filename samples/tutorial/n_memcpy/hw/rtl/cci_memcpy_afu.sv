@@ -30,7 +30,7 @@ module app_afu
         end
     end
 
-    logic [3:0] mmio_read_done;
+    logic [2:0] mmio_read_done;
 
     always_ff @(posedge clk)
     begin
@@ -69,21 +69,35 @@ module app_afu
         a_out.begin_copy <= (mmio_read_done == 'b111);
     end
 
+    t_ccip_clData rd_data;
+
     always_ff @(posedge clk)
     begin
-        if (reset)
+        if(reset)
         begin
+            a_out.rd_ready <= 0;
             a_out.wr_out <= 0;
-            //a_out.rd_ready <= 0;
+            a_out.wr_data <= 0;
         end
         else
         begin
-            a_out.wr_out  <= a_in.wr_ready;
-            //a_out.rd_ready <= a_in.rd_out;
+
+            if (a_out.rd_ready == 0 && a_in.wr_ready)
+            begin
+                a_out.rd_ready <= 1;
+            end
+
+            if (a_in.rd_out)
+            begin
+                //rd_data <= a_in.rd_data;
+                a_out.rd_ready <= 0;
+                a_out.wr_data <= a_in.rd_data;
+                a_out.wr_out <= 1;
+            end
+            else
+            begin
+                a_out.wr_out <= 0;
+            end
         end
     end
-
-    assign a_out.wr_data = a_in.rd_data;
-    assign a_out.rd_ready = 1;
-
 endmodule

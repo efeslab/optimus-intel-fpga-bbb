@@ -1,0 +1,15 @@
+# Include MPF
+C:${FPGA_BBB_CCI_SRC}/BBB_vai_dma/hw/rtl/sources.txt
+
+# Common RTL shared by multiple examples
++incdir+.
+cci_bnn.json
+bconv_layer.sv
+blin_layer.sv
+blast_layer.sv
+bview_layer.sv
+popcnt.sv
+weight.sv
+bnn.sv
+top.sv
+tb_top.sv

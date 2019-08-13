@@ -13,7 +13,7 @@
 
         logic          rd_ready;
         logic          wr_out;
-        logic [511:0]  wr_data;
+        t_ccip_clData  wr_data;
     } dma_in;
 
     typedef struct packed {
@@ -21,7 +21,7 @@
 
         logic           wr_ready;
         logic           rd_out;
-        logic [511:0]   rd_data;
+        t_ccip_clData   rd_data;
     } dma_out;
 
     typedef struct packed {

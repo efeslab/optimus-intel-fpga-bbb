@@ -11,8 +11,8 @@ module dma(
 
     always @(posedge clk)
     begin
-        reset   <= soft_reset | afu_to_dma.d_in.begin_copy;
-        reset_r <= ~soft_reset & ~afu_to_dma.d_in.begin_copy;
+        reset   <= soft_reset | ~afu_to_dma.d_in.begin_copy;
+        reset_r <= ~soft_reset & afu_to_dma.d_in.begin_copy;
     end
 
     t_if_ccip_c1_Tx  sTx_c1_fifo;
@@ -71,7 +71,7 @@ module dma(
     end
 
     logic fifo_c0rx_rdack, fifo_c0rx_dout_v, fifo_c0rx_full, fifo_c0rx_almFull;
-    t_if_ccip_c0_Rx fifo_c0Rx_dout;
+    t_ccip_clData fifo_c0rx_dout;
     fifo #(
         .DATA_WIDTH($bits(t_ccip_clData)),
         .CTL_WIDTH(0),
@@ -100,22 +100,17 @@ module dma(
     logic fifo_c0rx_dout_v_q, fifo_c0rx_dout_v_qq;
     assign fifo_c0rx_rdack = fifo_c0rx_dout_v && afu_to_dma.d_in.rd_ready;
 
-    t_if_ccip_Rx sRx;
-
     always_ff @(posedge clk)
     begin
         if (reset)
         begin
             fifo_c0rx_dout_v_q <= 0;
             fifo_c0rx_dout_v_qq <= 0;
-            sRx <= 0;
         end
         else
         begin
             fifo_c0rx_dout_v_q <= fifo_c0rx_rdack;
             fifo_c0rx_dout_v_qq <= fifo_c0rx_dout_v_q;
-
-            sRx.c0 <= fifo_c0rx_dout;
 
             if (fifo_c0rx_dout_v_qq)
             begin
@@ -200,8 +195,8 @@ module dma(
     logic [64:0] read_size;
     logic [64:0] next_write_idx;
 
-    logic read_valid, read_valid_q;
-    assign read_valid = !afu_to_dma.sRx.c0TxAlmFull & state == STATE_RUN & read_size < afu_to_dma.d_in.rd_len & !increment & !fifo_c1tx_almFull & !afu_to_dma.sRx.c1TxAlmFull & !fifo_c0rx_almFull;
+    logic read_valid;
+    assign read_valid = !afu_to_dma.sRx.c0TxAlmFull & state == STATE_RUN  & !increment & !fifo_c1tx_almFull & !afu_to_dma.sRx.c1TxAlmFull & !fifo_c0rx_almFull;
 
     always_ff @(posedge clk)
     begin
@@ -214,9 +209,9 @@ module dma(
         end
         else
         begin
-            dma_to_afu.sTx.c0.valid <= read_valid;
+            dma_to_afu.sTx.c0.valid <= (read_valid & read_size < afu_to_dma.d_in.rd_len);
 
-            if (read_valid)
+            if (read_valid & read_size < afu_to_dma.d_in.rd_len)
             begin
                 read_size <= read_size + 1;
                 increment <= 1;
@@ -232,24 +227,6 @@ module dma(
         end
     end
 
-    // read response logic
-    t_ccip_clData rd_data;
-
-    // logic can_send_write_req;
-
-    always_ff @(posedge clk)
-    begin
-        if (reset)
-        begin
-            rd_data <= 0;
-        end
-        else if (afu_to_dma.sRx.c0.rspValid)
-        begin
-            rd_data <= afu_to_dma.sRx.c0.data;
-        end
-    end
-
-
     // write logic
 
     t_ccip_c1_ReqMemHdr wr_hdr;
@@ -262,6 +239,9 @@ module dma(
         wr_hdr.address <= afu_to_dma.d_in.wr_addr + next_write_idx;
     end
 
+    logic write_valid;
+    assign write_valid = (state == STATE_RUN  &  afu_to_dma.d_in.wr_out & dma_to_afu.d_out.wr_ready);
+
     // send write
     always_ff @(posedge clk)
     begin
@@ -273,8 +253,8 @@ module dma(
         end
         else
         begin
-            sTx_c1_fifo.valid <= (state == STATE_RUN  && afu_to_dma.d_in.wr_out && dma_to_afu.d_out.wr_ready);
-            if (state == STATE_RUN  && afu_to_dma.d_in.wr_out && dma_to_afu.d_out.wr_ready)
+            sTx_c1_fifo.valid <= (write_valid & next_write_idx < afu_to_dma.d_in.wr_len);
+            if (write_valid & next_write_idx < afu_to_dma.d_in.wr_len)
             begin
                 next_write_idx <= next_write_idx + 1;
             end
