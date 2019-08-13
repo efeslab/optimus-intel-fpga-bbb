@@ -2,7 +2,7 @@
 `include "csr_mgr.vh"
 `include "afu_json_info.vh"
 
-module app_afu
+module gaussian_app_afu
 (
     input logic clk,
     cci_mpf_if.to_fiu fiu,

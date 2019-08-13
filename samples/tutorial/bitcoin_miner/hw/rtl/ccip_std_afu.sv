@@ -59,7 +59,7 @@ module `BITCOIN_TOP_IFC_NAME
         .afu_rx(sRx_async)
         );
 
-    ccip_std_afu_async bitcoin(
+    ccip_std_afu_bitcoin_async bitcoin(
         .pClk(pClkDiv4),
         .pck_cp2af_softReset(reset_async),
         .pck_cp2af_sRx(sRx_async),

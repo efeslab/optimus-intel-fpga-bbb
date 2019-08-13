@@ -37,7 +37,7 @@ module fpgaminer_top (osc_clk, reset, d, md, n, gn, gn_v);
 `ifdef CONFIG_LOOP_LOG2
 	parameter LOOP_LOG2 = `CONFIG_LOOP_LOG2;
 `else
-	parameter LOOP_LOG2 = 3;
+	parameter LOOP_LOG2 = 4;
 `endif
 
 	// No need to adjust these parameters

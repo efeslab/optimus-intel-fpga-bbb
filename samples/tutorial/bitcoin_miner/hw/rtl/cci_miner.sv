@@ -32,7 +32,7 @@
 `include "afu_json_info.vh"
 
 
-module ccip_std_afu_async
+module ccip_std_afu_bitcoin_async
    (
     // CCI-P Clocks and Resets
     input           logic             pClk,              // 400MHz - CCI-P clock domain. Primary interface clock

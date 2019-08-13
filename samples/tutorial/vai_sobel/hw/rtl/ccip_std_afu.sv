@@ -41,7 +41,7 @@ module `SOBEL_TOP_IFC_NAME
 				    );
    
 
-   ccip_std_afu_async afu_async (
+   ccip_std_afu_sobel_async afu_async (
 		      .pClk( afu_clk ) ,
 		      .pck_cp2af_softReset( reset_pass ) ,
 		      .pck_cp2af_sRx( afu_rx ) ,

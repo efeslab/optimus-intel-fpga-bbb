@@ -47,7 +47,7 @@
 `include "cci_mpf_app_conf_default.vh"
 `include "csr_mgr.vh"
 
-module ccip_std_afu_async
+module ccip_std_afu_gaussian_async
    (
     // CCI-P Clocks and Resets
     input           logic             pClk,              // 400MHz - CCI-P clock domain. Primary interface clock
@@ -297,7 +297,7 @@ module ccip_std_afu_async
     //
     // ====================================================================
 
-    app_afu
+    gaussian_app_afu
       app
        (
         .clk(afu_clk),
