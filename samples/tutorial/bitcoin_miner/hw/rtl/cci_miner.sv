@@ -32,7 +32,7 @@
 `include "afu_json_info.vh"
 
 
-module ccip_std_afu_bitcoin_async
+module ccip_std_afu_async
    (
     // CCI-P Clocks and Resets
     input           logic             pClk,              // 400MHz - CCI-P clock domain. Primary interface clock
@@ -134,7 +134,7 @@ module ccip_std_afu_bitcoin_async
     logic [31:0] golden_nonce_buf;
     logic [31:0] cnt;
     logic golden_valid, golden_valid_q;
-    logic miner_reset;
+    //logic miner_reset;
 
     //
     // Implement the device feature list by responding to MMIO reads.
@@ -219,6 +219,7 @@ module ccip_std_afu_bitcoin_async
             md3 <= 0;
             md4 <= 0;
             result_addr <= 0;
+            csr_control_start <= 0;
         end
         else
         begin
@@ -233,13 +234,8 @@ module ccip_std_afu_bitcoin_async
                     BITCOIN_CSR_MD2: md2 <= sRx.c0.data;
                     BITCOIN_CSR_MD3: md3 <= sRx.c0.data;
                     BITCOIN_CSR_MD4: md4 <= sRx.c0.data;
-                    BITCOIN_CSR_RESULT_ADDR: result_addr <= sRx.c0.data;
-                    BITCOIN_CSR_CONTROL: begin
-                        if (sRx.c0.data == STATE_RUN)
-                            csr_control_start <= 1;
-                        else if (sRx.c0.data == STATE_IDLE)
-                            csr_control_start <= 0;
-                    end
+                    BITCOIN_CSR_RESULT_ADDR: result_addr <= t_ccip_clAddr'(sRx.c0.data);
+                    BITCOIN_CSR_CONTROL: csr_control_start <= sRx.c0.data[0];
                 endcase
             end
             else begin
@@ -248,7 +244,7 @@ module ccip_std_afu_bitcoin_async
         end
     end
 
-    fpgaminer_top miner(clk, miner_reset, data, middata, nonce, golden_nonce, golden_valid);
+    fpgaminer_top miner(clk, reset, data, middata, nonce, golden_nonce, golden_valid);
 
     always_ff @(posedge clk)
     begin
@@ -256,7 +252,7 @@ module ccip_std_afu_bitcoin_async
             golden_nonce_buf <= 0;
             state <= STATE_IDLE;
             cnt <= 0;
-            miner_reset <= 1;
+            //miner_reset <= 1;
         end
         else begin
             golden_valid_q <= golden_valid;
@@ -265,7 +261,7 @@ module ccip_std_afu_bitcoin_async
                 STATE_IDLE: begin
                     if (csr_control_start) begin
                         state <= STATE_RUN;
-                        miner_reset <= 0;
+                        //miner_reset <= 0;
                     end
                 end
                 STATE_RUN: begin
@@ -278,7 +274,7 @@ module ccip_std_afu_bitcoin_async
                 end
                 STATE_WRITE_RESULT: begin
                     if (!sRx.c1TxAlmFull) begin
-                        miner_reset <= 1;
+                        //miner_reset <= 1;
                         state <= STATE_IDLE;
                     end
                 end

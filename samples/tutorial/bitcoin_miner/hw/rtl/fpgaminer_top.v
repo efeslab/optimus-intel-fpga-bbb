@@ -148,7 +148,7 @@ module fpgaminer_top (osc_clk, reset, d, md, n, gn, gn_v);
 
 
             // Check to see if the last hash generated is valid.
-            is_golden_ticket <= (hash2[255:244] == 32'h00000000) && !feedback_d1;
+            is_golden_ticket <= (hash2[255:224] == 32'h00000000) && !feedback_d1;
             if(is_golden_ticket)
             begin
                 // TODO: Find a more compact calculation for this

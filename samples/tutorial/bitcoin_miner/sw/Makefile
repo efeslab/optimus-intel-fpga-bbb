@@ -35,7 +35,7 @@ endif
 CPPFLAGS += -I../../base/sw
 LDFLAGS += -luuid
 
-FPGA_LIBS = -lopae-c -ljson-c
+FPGA_LIBS = -lvai-c -ljson-c
 ASE_LIBS = -lvai-c-ase
 
 # Primary test name

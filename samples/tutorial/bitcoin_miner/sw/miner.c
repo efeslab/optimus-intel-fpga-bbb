@@ -55,9 +55,9 @@ int main(int argc, char *argv[])
             }
             else {
                 uint64_t curr_nonce, state;
-                vai_afu_mmio_read(conn, BITCOIN_CSR_CURR_NONCE, &curr_nonce);
-                vai_afu_mmio_read(conn, BITCOIN_CSR_CONTROL, &state);
-                printf("current nonce: 0x%lx, current state: 0x%lx\n", curr_nonce, state);
+                //vai_afu_mmio_read(conn, BITCOIN_CSR_CURR_NONCE, &curr_nonce);
+                //vai_afu_mmio_read(conn, BITCOIN_CSR_CONTROL, &state);
+                //printf("current nonce: 0x%lx, current state: 0x%lx\n", curr_nonce, state);
                 usleep(10000);
             }
         }

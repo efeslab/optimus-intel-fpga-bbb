@@ -1,5 +1,4 @@
 cci_miner.json
 
 SI:${FPGA_BBB_CCI_SRC}/BBB_ccip_async/hw/sim/ccip_async_sim_addenda.txt
-QI:../par/cci_base_par_files.qsf
 C:./sources.txt
