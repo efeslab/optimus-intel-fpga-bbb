@@ -1,0 +1,3 @@
+source $::env(FPGA_BBB_CCI_SRC)/BBB_ccip_async/hw/par/ccip_async_addenda.qsf
+source $::env(FPGA_BBB_CCI_SRC)/BBB_cci_mpf/hw/par/qsf_cci_mpf_PAR_files.qsf
+source $::env(FPGA_BBB_CCI_SRC)/BBB_vai_mux_nested/hw/par/ccip_mux.qsf

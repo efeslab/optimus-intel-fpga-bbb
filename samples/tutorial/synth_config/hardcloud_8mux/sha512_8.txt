@@ -1,0 +1,12 @@
+cci_mux.json
+cci_mux.sv
+
+QI:./par/cci_base_par_files.qsf
+
++define+NUM_AFUS=8
++define+WITH_MUX
++define+AFU_WITHMUX_NAME=sha512_top
+
++incdir+.
+
+C:/home/jcma/hardcloud/samples/sha512/hw/sources.txt

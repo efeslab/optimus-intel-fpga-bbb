@@ -1,0 +1,12 @@
+cci_mux.json
+cci_mux.sv
+
+QI:./par/cci_base_par_files.qsf
+
++define+NUM_AFUS=8
++define+WITH_MUX
++define+AFU_TOP_NAME=smith_waterman_top
+
++incdir+.
+
+C:/home/jcma/hardcloud/samples/smith_waterman/hw/sources.txt

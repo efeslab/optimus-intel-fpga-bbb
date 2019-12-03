@@ -1,0 +1,12 @@
+cci_mux.json
+cci_mux.sv
+
+QI:./par/cci_base_par_files.qsf
+
++define+NUM_AFUS=8
++define+WITH_MUX
+
++incdir+.
+
+C:/home/jcma/vai-intel-fpga-bbb/samples/tutorial/vai_membench/hw/rtl/sources.txt
+C:/home/jcma/hardcloud/samples/md5/hw/sources.txt

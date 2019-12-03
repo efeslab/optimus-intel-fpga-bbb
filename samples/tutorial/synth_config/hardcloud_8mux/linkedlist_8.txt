@@ -1,0 +1,12 @@
+cci_mux.json
+cci_mux.sv
+
+QI:./par/cci_base_par_files.qsf
+
++define+NUM_AFUS=8
++define+WITH_MUX
++define+AFU_WITHMUX_NAME=linked_list_nompf_top
+
++incdir+.
+
+C:/home/jcma/vai-intel-fpga-bbb/samples/tutorial/vai_linked_list/hw/rtl/sources.txt

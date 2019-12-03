@@ -1,0 +1,12 @@
+cci_mux.json
+cci_mux.sv
+
+QI:./par/cci_base_par_files.qsf
+
++define+NUM_AFUS=8
++define+WITH_MUX
++define+AFU_WITHMUX_NAME=gaussian_cci_top
+
++incdir+.
+
+C:/home/jcma/vai-intel-fpga-bbb/samples/tutorial/vai_gaussian/hw/rtl/sources.txt
