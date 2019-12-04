@@ -1,0 +1,20 @@
+#ifndef CSR_ADDR_H
+#define CSR_ADDR_H
+
+//RW
+#define MMIO_CSR_STATUS_ADDR 0
+#define MMIO_CSR_SRC_ADDR 1
+#define MMIO_CSR_DST_ADDR 2
+#define MMIO_CSR_NUM_LINES 3
+//RO
+#define MMIO_CSR_MEM_READ_IDX 4
+#define MMIO_CSR_WRITE_REQ_CNT 5
+#define MMIO_CSR_WRITE_RESP_CNT 6
+#define MMIO_CSR_STATE 7
+#define MMIO_CSR_CLK_CNT 8
+#define MMIO_CSR_WRITE_FULL_CNT 9
+//WO
+#define MMIO_CSR_CTL 10
+#define MMIO_CSR_WR_THRESHOLD 11
+
+#endif
