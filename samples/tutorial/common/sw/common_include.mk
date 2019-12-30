@@ -2,7 +2,7 @@
 ## Common sw build rules
 ##
 
-COPT     ?= -g
+COPT     ?= -g -std=c99
 CPPFLAGS ?= -std=c++11
 CXX      ?= g++
 LDFLAGS  ?=
