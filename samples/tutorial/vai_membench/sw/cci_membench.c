@@ -247,6 +247,7 @@ sleep:
         }
         if (status_buf->completion)
             break;
+#define NO_PREEMPTION
 #ifndef NO_PREEMPTION
         uint64_t tsstate;
         assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_TRANSACTION_CTL, tsctlPAUSE) == 0);
