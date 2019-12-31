@@ -250,12 +250,18 @@ sleep:
 #define NO_PREEMPTION
 #ifndef NO_PREEMPTION
         uint64_t tsstate;
+#ifdef SIMULTAION
         assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_TRANSACTION_CTL, tsctlPAUSE) == 0);
+#endif
         while (1) {
             assert(fpgaReadMMIO64(accel_handle, 0, MMIO_CSR_TRANSACTION_STATE, &tsstate) == FPGA_OK);
             printf("state while waiting for pause: %ld\n", tsstate);
+            if (!get_debug_csr(accel_handle, &dc))
+                print_csr(&dc);
             if (tsstate == tsPAUSED)
                 break;
+            if (tsstate == tsFINISH)
+                goto sleep;
             usleep(500000);
         }
         assert(fpgaReset(accel_handle) == FPGA_OK);
