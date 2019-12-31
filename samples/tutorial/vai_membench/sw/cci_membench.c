@@ -247,7 +247,6 @@ sleep:
         }
         if (status_buf->completion)
             break;
-#define NO_PREEMPTION
 #ifndef NO_PREEMPTION
         uint64_t tsstate;
 #ifdef SIMULTAION
