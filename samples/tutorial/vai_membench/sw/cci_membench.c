@@ -66,10 +66,6 @@ static fpga_handle connect_to_accel(const char *accel_uuid)
     fpgaGetProperties(NULL, &filter);
     fpgaPropertiesSetObjectType(filter, FPGA_ACCELERATOR);
 
-    // Add the desired UUID to the filter
-    uuid_parse(accel_uuid, guid);
-    fpgaPropertiesSetGUID(filter, guid);
-
     // Do the search across the available FPGA contexts
     num_matches = 1;
     fpgaEnumerate(&filter, 1, &accel_token, 1, &num_matches);
@@ -85,6 +81,9 @@ static fpga_handle connect_to_accel(const char *accel_uuid)
 
     // Open accelerator
     r = fpgaOpen(accel_token, &accel_handle, 0);
+    assert(FPGA_OK == r);
+
+    r = fpgaIOMMUOpen(accel_handle);
     assert(FPGA_OK == r);
 
     // Done with token

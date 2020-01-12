@@ -5,7 +5,7 @@ TEST = linked_list_nompf
 
 # Build directory
 OBJDIR = obj
-CFLAGS += -I./$(OBJDIR)
+CFLAGS += -I./$(OBJDIR) -std=c99
 CPPFLAGS += -I./$(OBJDIR)
 
 # Files and folders

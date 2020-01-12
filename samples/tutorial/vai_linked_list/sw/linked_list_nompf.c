@@ -35,18 +35,16 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <sys/time.h>
 
 #include <uuid/uuid.h>
-#ifdef ORIG_ASE
 #include <opae/fpga.h>
-#else
-#include <vai/fpga.h>
-#endif //ORIG_ASE
-#include <vai/wrapper.h>
 // State from the AFU's JSON file, extracted using OPAE's afu_json_mgr script
 #include "afu_json_info.h"
 #include "csr_addr.h"
 #include "report.h"
+
+#define CL(x) (64*x)
 
 uint64_t total = 0;
 //
@@ -117,10 +115,6 @@ static fpga_handle connect_to_accel(const char *accel_uuid)
     fpgaGetProperties(NULL, &filter);
     fpgaPropertiesSetObjectType(filter, FPGA_ACCELERATOR);
 
-    // Add the desired UUID to the filter
-    uuid_parse(accel_uuid, guid);
-    fpgaPropertiesSetGUID(filter, guid);
-
     // Do the search across the available FPGA contexts
     num_matches = 1;
     fpgaEnumerate(&filter, 1, &accel_token, 1, &num_matches);
@@ -136,6 +130,9 @@ static fpga_handle connect_to_accel(const char *accel_uuid)
 
     // Open accelerator
     r = fpgaOpen(accel_token, &accel_handle, 0);
+    assert(FPGA_OK == r);
+
+    r = fpgaIOMMUOpen(accel_handle);
     assert(FPGA_OK == r);
 
     // Done with token
@@ -174,9 +171,9 @@ struct t_result {
 int main(int argc, char *argv[])
 {
     // randomize
-    struct timespec tp;
-    clock_gettime(CLOCK_MONOTONIC_RAW, &tp);
-    srand(tp.tv_nsec);
+    //struct timespec tp;
+    //clock_gettime(CLOCK_MONOTONIC_RAW, &tp);
+    //srand(tp.tv_nsec);
     // parse command line
     uint64_t n_entries = 0;
     uint64_t totalsize = 0;
@@ -289,25 +286,6 @@ found_prop:
         print_csr(&dc);
         if (result_buf->done) // if job finished, quit
             break;
-        // periodically pause then resume
-        uint64_t tsstate;
-        assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_TRANSACTION_CTL, tsctlPAUSE) == 0);
-        while (1) {
-            fpgaReadMMIO64(accel_handle, 0, MMIO_CSR_TRANSACTION_STATE, &tsstate);
-            printf("state while waiting for pause: %ld\n", tsstate);
-            if (tsstate == tsPAUSED)
-                break;
-            usleep(500000);
-        }
-        // pause completed
-        assert(fpgaReset(accel_handle) == FPGA_OK);
-        usleep(5000);
-        // try to resume instantly
-        assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_SNAPSHOT_ADDR, snpst_bufpa / CL(1)) == 0);
-        assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_PROPERTIES, csr_properties) == 0);
-        assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_START_ADDR, list_bufpa / CL(1)) == 0);
-        assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_RESULT_ADDR, result_bufpa / CL(1)) == 0);
-        assert(fpgaWriteMMIO64(accel_handle, 0, MMIO_CSR_TRANSACTION_CTL, tsctlSTART_RESUME) == 0);
     }
 
     // Hash is stored in result_buf[1]

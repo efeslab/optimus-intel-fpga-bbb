@@ -66,6 +66,6 @@ endif
 LDFLAGS += -luuid
 
 FPGA_LIBS = -lopae-c
-FPGA_VAI_LIBS += -lvai-c
+#FPGA_VAI_LIBS += -lvai-c
 ASE_LIBS += -lopae-c-ase
-VAI_ASE_LIBS = -lvai-c-ase
+#VAI_ASE_LIBS = -lvai-c-ase
